@@ -1,16 +1,7 @@
 import { Elysia } from "elysia";
-import { uploadSchema } from "./schema";
-import { handleAudioUpload } from "./use-case";
+import { uploadFileRouter } from "./upload-file/router";
+import { getStatusRouter } from "./get-status-execution/router";
 
-export const orchestratorRouter = new Elysia({ prefix: "/orchestrator" }).post(
-  "/upload",
-  async ({ body, set }) => {
-    const result = await handleAudioUpload(body.audio);
-    if (result.isCached) {
-      return result.data;
-    }
-    set.status = 202;
-    return result.data;
-  },
-  uploadSchema,
-);
+export const orchestratorRouter = new Elysia({ prefix: "/orchestrator" })
+  .use(uploadFileRouter)
+  .use(getStatusRouter);

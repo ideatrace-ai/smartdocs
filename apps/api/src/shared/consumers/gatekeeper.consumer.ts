@@ -1,17 +1,18 @@
-import { consumeMessages } from "../queue";
+import { queueService } from "../services/queue.service";
 import {
   GatekeeperWorker,
-  GatekeeperPayload,
-} from "../../modules/workers/gatekeeper.worker";
+  type GatekeeperPayload,
+} from "../workers/gatekeeper.worker";
+import { QueueNames } from "../constants";
 
-const QUEUE_NAME = "q.audio.new";
+const QUEUE_NAME = QueueNames.AUDIO_NEW;
 
 async function main() {
   console.log("Starting gatekeeper consumer...");
 
   const worker = new GatekeeperWorker();
 
-  await consumeMessages(QUEUE_NAME, async (payload) => {
+  await queueService.consume(QUEUE_NAME, async (payload) => {
     console.log(`Received message from ${QUEUE_NAME}:`, payload);
 
     if (!isGatekeeperPayload(payload)) {

@@ -3,6 +3,7 @@ import { z } from "zod";
 export const envs = {
   app: loadAppEnvs(),
   db: loadDbEnvs(),
+  services: loadServicesEnvs(),
 };
 
 function loadAppEnvs() {
@@ -19,6 +20,14 @@ function loadDbEnvs() {
   const schema = z.object({
     DATABASE_URL: z.url(),
     RABBITMQ_URL: z.url(),
+  });
+
+  return schema.parse(process.env);
+}
+
+function loadServicesEnvs() {
+  const schema = z.object({
+    OLLAMA_API_URL: z.url().default("http://localhost:11434"),
   });
 
   return schema.parse(process.env);

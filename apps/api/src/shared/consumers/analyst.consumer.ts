@@ -1,17 +1,18 @@
-import { consumeMessages } from "../queue";
+import { queueService } from "../services/queue.service";
 import {
   AnalystWorker,
-  AnalystPayload,
-} from "../../modules/workers/analyst.worker";
+  type AnalystPayload,
+} from "../workers/analyst.worker";
+import { QueueNames } from "../constants";
 
-const QUEUE_NAME = "q.transcript.analyze";
+const QUEUE_NAME = QueueNames.TRANSCRIPT_ANALYZE;
 
 async function main() {
   console.log("Starting analyst consumer...");
 
   const worker = new AnalystWorker();
 
-  await consumeMessages(QUEUE_NAME, async (payload) => {
+  await queueService.consume(QUEUE_NAME, async (payload) => {
     console.log(`Received message from ${QUEUE_NAME}:`, payload);
 
     if (!isAnalystPayload(payload)) {
