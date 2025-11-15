@@ -14,7 +14,7 @@ This worker is built to:
 ## 2. What Was Implemented
 
 -   **Worker Logic (`transcription.worker.ts`):** A `TranscriptionWorker` class has been created. Its `perform` method contains the core logic for transcribing an audio file.
--   **Transcription Library (`@lumen-labs-dev/whisper-node`):** We've integrated `whisper-node`, a powerful Node.js library that runs the `whisper.cpp` model locally. It's configured to use the `small.en` model, which offers a good balance of performance and accuracy.
+-   **Transcription Library (`@lumen-labs-dev/whisper-node`):** We've integrated `whisper-node`, a powerful Node.js library that runs the `whisper.cpp` model locally. It's configured to use the `small` model, which offers a good balance of performance and accuracy.
 -   **Queue Integration (`queue/index.ts`):** A module for connecting to a RabbitMQ message broker has been set up. The worker uses this module to publish the transcription result to the `q.transcript.analyze` queue or send an error message to the `q.audio.failed` queue.
 -   **Configuration (`config/envs.ts`):** The system is configured to read the `RABBITMQ_URL` from your environment variables to connect to the message broker.
 
@@ -59,9 +59,9 @@ To run this service, you need the following software installed on your machine:
     EMAIL_DOMAIN="your_domain"
     ```
 
-3.  **Download the Transcription Model:** The worker needs the `small.en` model files to perform the transcription. From the `apps/api` directory, run the following command:
+3.  **Download the Transcription Model:** The worker needs the `small` model files to perform the transcription. From the `apps/api` directory, run the following command:
     ```bash
-    npx whisper-node download --model small.en
+    npx whisper-node download --model small
     ```
     This will download the model into the correct location within your `node_modules` directory.
 

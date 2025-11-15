@@ -1,8 +1,8 @@
-import { queueService } from "../services/queue.service";
-import { db } from "../../shared/database";
-import { processingStatus } from "../../shared/database/schema";
+import { queueService } from "../queue/services/queue.service";
+import { db } from "../database";
+import { processingStatus } from "../database/schema";
 import { whisper } from "@lumen-labs-dev/whisper-node";
-import { ProcessingStatus, QueueNames } from "../constants";
+import { ProcessingStatus, QueueNames } from "../utils/constants";
 
 export interface TranscriptionPayload {
   audio_hash: string;
@@ -26,8 +26,7 @@ export class TranscriptionWorker {
 
   async perform(
     payload: TranscriptionPayload,
-  ):
- Promise<{ status: string; transcript: string }> {
+  ): Promise<{ status: string; transcript: string }> {
     const { audio_hash, file_path } = payload;
     console.log("TranscriptionWorker received:", audio_hash);
 
@@ -37,7 +36,7 @@ export class TranscriptionWorker {
       console.log(`Starting transcription for audio_hash: ${audio_hash}`);
 
       const transcript = await whisper(file_path, {
-        modelName: "small.en",
+        modelName: "small",
       });
 
       const full_text = transcript

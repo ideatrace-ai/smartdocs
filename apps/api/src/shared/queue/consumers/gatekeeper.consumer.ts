@@ -1,24 +1,22 @@
 import { queueService } from "../services/queue.service";
 import {
-  TranscriptionWorker,
-  type TranscriptionPayload,
-} from "../workers/transcription.worker";
-import { QueueNames } from "../constants";
+  GatekeeperWorker,
+  type GatekeeperPayload,
+} from "../workers/gatekeeper.worker";
+import { QueueNames } from "../../constants";
 
-const QUEUE_NAME = QueueNames.AUDIO_TRANSCRIBE;
+const QUEUE_NAME = QueueNames.AUDIO_NEW;
 
 async function main() {
-  console.log("Starting transcription consumer...");
+  console.log("Starting gatekeeper consumer...");
 
-  const worker = new TranscriptionWorker();
+  const worker = new GatekeeperWorker();
 
   await queueService.consume(QUEUE_NAME, async (payload) => {
     console.log(`Received message from ${QUEUE_NAME}:`, payload);
 
-    // Basic validation
-    if (!isTranscriptionPayload(payload)) {
+    if (!isGatekeeperPayload(payload)) {
       console.error("Invalid message payload:", payload);
-      // The message will be rejected and not requeued by the consumer logic.
       return;
     }
 
@@ -26,8 +24,7 @@ async function main() {
   });
 }
 
-// Type guard to validate the payload
-function isTranscriptionPayload(payload: any): payload is TranscriptionPayload {
+function isGatekeeperPayload(payload: any): payload is GatekeeperPayload {
   return (
     payload &&
     typeof payload.audio_hash === "string" &&

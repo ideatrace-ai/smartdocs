@@ -1,14 +1,11 @@
-import { db } from "../../shared/database";
-import {
-  processingStatus,
-  requirementDocuments,
-} from "../../shared/database/schema";
+import { db } from "../database";
+import { processingStatus, requirementDocuments } from "../database/schema";
 import { analystContext } from "./prompts/analyst-prompt";
 import { envs } from "../config/envs";
 import {
   ProcessingStatus,
   GatekeeperRejectionReason,
-} from "../constants";
+} from "../utils/constants";
 
 export interface AnalystPayload {
   audio_hash: string;
@@ -69,9 +66,7 @@ export class AnalystWorker {
     }
   }
 
-  private async getStructuredDataFromLLM(
-    text: string,
-  ): Promise<object | null> {
+  private async getStructuredDataFromLLM(text: string): Promise<object | null> {
     try {
       const response = await fetch(
         `${envs.services.OLLAMA_API_URL}/api/generate`,

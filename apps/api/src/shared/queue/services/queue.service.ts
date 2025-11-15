@@ -1,5 +1,9 @@
-import amqp, { type Connection, type Channel, type ConsumeMessage } from 'amqplib';
-import { envs } from '../config/envs';
+import amqp, {
+  type Connection,
+  type Channel,
+  type ConsumeMessage,
+} from "amqplib";
+import { envs } from "../../config/envs";
 
 let connection: Connection | null = null;
 
@@ -8,23 +12,23 @@ async function connect(): Promise<Connection> {
     return connection;
   }
   try {
-    // The cast to 'any' then 'Connection' is a workaround for a known issue
-    // with amqplib types in some environments. This is isolated here.
-    connection = (await amqp.connect(envs.db.RABBITMQ_URL)) as any as Connection;
-    
-    connection.on('error', (err) => {
-      console.error('RabbitMQ connection error:', err);
+    connection = (await amqp.connect(
+      envs.db.RABBITMQ_URL,
+    )) as any as Connection;
+
+    connection.on("error", (err) => {
+      console.error("RabbitMQ connection error:", err);
       connection = null;
     });
-    connection.on('close', () => {
-      console.log('RabbitMQ connection closed.');
+    connection.on("close", () => {
+      console.log("RabbitMQ connection closed.");
       connection = null;
     });
 
-    console.log('Connected to RabbitMQ');
+    console.log("Connected to RabbitMQ");
     return connection;
   } catch (error) {
-    console.error('Failed to connect to RabbitMQ', error);
+    console.error("Failed to connect to RabbitMQ", error);
     connection = null;
     throw error;
   }
@@ -46,7 +50,10 @@ export const queueService = {
     }
   },
 
-  async consume(queue: string, onMessage: (msg: any) => Promise<void>): Promise<void> {
+  async consume(
+    queue: string,
+    onMessage: (msg: any) => Promise<void>,
+  ): Promise<void> {
     try {
       const conn = await connect();
       const channel: Channel = await (conn as any).createChannel();
@@ -62,12 +69,12 @@ export const queueService = {
               await onMessage(content);
               channel.ack(msg);
             } catch (error) {
-              console.error('Error processing message:', error);
-              channel.nack(msg, false, false); // Don't requeue on processing error
+              console.error("Error processing message:", error);
+              channel.nack(msg, false, false);
             }
           }
         },
-        { noAck: false }
+        { noAck: false },
       );
     } catch (error) {
       console.error(`Error consuming messages from queue ${queue}:`, error);

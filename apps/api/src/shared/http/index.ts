@@ -1,6 +1,6 @@
 import { Elysia } from "elysia";
 import { openapi } from "@elysiajs/openapi";
-import { orchestratorRouter } from "../../modules/orchestrator/router";
+import { orchestratorRouter } from "../../modules/gateway/router";
 import { envs } from "../config/envs";
 
 const app = new Elysia()

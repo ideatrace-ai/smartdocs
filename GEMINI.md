@@ -106,7 +106,7 @@ Para gerenciar os serviços isolados, usaremos o Turborepo. A estrutura de pasta
 
     1.  Consome a mensagem `{ audio_hash, file_path }` da fila `q.audio.transcribe`.
     2.  Este é o "trabalho pesado". O worker chama a implementação do **`whisper.cpp`** (novamente, via bindings TS/Node.js) no `file_path` completo.
-    3.  **Escolha do Modelo:** Dado seu M4 com 16GB, você pode usar um modelo robusto. Recomendo o `small.en` ou até o `medium.en`. O `small` será mais rápido, o `medium` mais preciso. Comece com o `small` para garantir que não sufoque a RAM em áudios longos.
+    3.  **Escolha do Modelo:** Dado seu M4 com 16GB, você pode usar um modelo robusto. O `small` será mais rápido, o `medium` mais preciso. Comece com o `small` para garantir que não sufoque a RAM em áudios longos.
     4.  Aguarde o `whisper.cpp` concluir. Isso pode levar alguns minutos, e tudo bem, pois é um worker assíncrono.
     5.  Recebe o texto da transcrição completa.
     6.  Publica a nova mensagem na fila `q.transcript.analyze`:

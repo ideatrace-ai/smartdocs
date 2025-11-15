@@ -1,21 +1,21 @@
 import { queueService } from "../services/queue.service";
 import {
-  AnalystWorker,
-  type AnalystPayload,
-} from "../workers/analyst.worker";
-import { QueueNames } from "../constants";
+  TranscriptionWorker,
+  type TranscriptionPayload,
+} from "../workers/transcription.worker";
+import { QueueNames } from "../../constants";
 
-const QUEUE_NAME = QueueNames.TRANSCRIPT_ANALYZE;
+const QUEUE_NAME = QueueNames.AUDIO_TRANSCRIBE;
 
 async function main() {
-  console.log("Starting analyst consumer...");
+  console.log("Starting transcription consumer...");
 
-  const worker = new AnalystWorker();
+  const worker = new TranscriptionWorker();
 
   await queueService.consume(QUEUE_NAME, async (payload) => {
     console.log(`Received message from ${QUEUE_NAME}:`, payload);
 
-    if (!isAnalystPayload(payload)) {
+    if (!isTranscriptionPayload(payload)) {
       console.error("Invalid message payload:", payload);
       return;
     }
@@ -24,11 +24,11 @@ async function main() {
   });
 }
 
-function isAnalystPayload(payload: any): payload is AnalystPayload {
+function isTranscriptionPayload(payload: any): payload is TranscriptionPayload {
   return (
     payload &&
     typeof payload.audio_hash === "string" &&
-    typeof payload.full_text === "string"
+    typeof payload.file_path === "string"
   );
 }
 

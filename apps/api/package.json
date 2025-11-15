@@ -20,7 +20,6 @@
     "@types/amqplib": "0.10.8",
     "@types/fluent-ffmpeg": "2.1.28",
     "amqplib": "0.10.9",
-    "bunlimit": "^0.1.4",
     "drizzle-orm": "0.44.7",
     "elysia": "1.4.15",
     "fluent-ffmpeg": "2.1.3",

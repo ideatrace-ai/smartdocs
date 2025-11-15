@@ -2,17 +2,17 @@ import ffmpeg from "fluent-ffmpeg";
 import path from "path";
 import { mkdir, readFile } from "fs/promises";
 import VAD from "node-webrtcvad";
-import { queueService } from "../services/queue.service";
+import { queueService } from "../queue/services/queue.service";
 import { whisper } from "@lumen-labs-dev/whisper-node";
 import { gatekeeperPrompt } from "./prompts/gatekeeper-prompt";
-import { db } from "../../shared/database";
-import { processingStatus } from "../../shared/database/schema";
+import { db } from "../database";
+import { processingStatus } from "../database/schema";
 import { envs } from "../config/envs";
 import {
   ProcessingStatus,
   GatekeeperRejectionReason,
   QueueNames,
-} from "../constants";
+} from "../utils/constants";
 
 export interface GatekeeperPayload {
   audio_hash: string;
@@ -97,7 +97,7 @@ export class GatekeeperWorker {
         );
 
         const transcript = await whisper(trimmedAudioPath, {
-          modelName: "tiny.en",
+          modelName: "tiny",
         });
         const transcribedText = transcript
           .map((segment) => segment.speech)
@@ -183,9 +183,7 @@ export class GatekeeperWorker {
       }
 
       const result = await response.json();
-      const classification = (
-        result as { response: string }
-      ).response
+      const classification = (result as { response: string }).response
         .trim()
         .toUpperCase();
 
@@ -280,4 +278,3 @@ export class GatekeeperWorker {
     return totalFrames > 0 ? (speechFrames / totalFrames) * 100 : 0;
   }
 }
-
