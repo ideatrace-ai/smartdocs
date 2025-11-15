@@ -4,13 +4,12 @@ import { handleAudioUpload } from "./use-case";
 
 export const uploadFileRouter = new Elysia().post(
   "/upload",
-  async ({ body, set }) => {
+  async ({ body, status }) => {
     const result = await handleAudioUpload(body.audio);
     if (result.isCached) {
       return result.data;
     }
-    set.status = 202;
-    return result.data;
+    return status(200, result.data);
   },
   uploadSchema,
 );

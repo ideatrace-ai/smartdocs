@@ -2,8 +2,8 @@ import { queueService } from "../services/queue.service";
 import {
   TranscriptionWorker,
   type TranscriptionPayload,
-} from "../workers/transcription.worker";
-import { QueueNames } from "../../constants";
+} from "../../workers/transcription.worker";
+import { QueueNames } from "../../utils/constants";
 
 const QUEUE_NAME = QueueNames.AUDIO_TRANSCRIBE;
 

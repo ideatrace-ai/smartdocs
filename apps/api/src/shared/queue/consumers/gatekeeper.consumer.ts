@@ -2,8 +2,8 @@ import { queueService } from "../services/queue.service";
 import {
   GatekeeperWorker,
   type GatekeeperPayload,
-} from "../workers/gatekeeper.worker";
-import { QueueNames } from "../../constants";
+} from "../../workers/gatekeeper.worker";
+import { QueueNames } from "../../utils/constants";
 
 const QUEUE_NAME = QueueNames.AUDIO_NEW;
 

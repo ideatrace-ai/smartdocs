@@ -4,18 +4,18 @@ import { getProcessingStatus } from "./use-case";
 
 export const getStatusRouter = new Elysia().get(
   "/status/:audio_hash",
-  async ({ params, set }) => {
-    const status = await getProcessingStatus(params.audio_hash);
+  async ({ params, status }) => {
+    const statusProcess = await getProcessingStatus(params.audio_hash);
 
-    if (!status) {
-      set.status = 404;
-      return {
+    if (!statusProcess) {
+      const body = {
         error: "Not Found",
         message: `No status found for audio_hash: ${params.audio_hash}`,
       };
+      return status(404, body);
     }
 
-    return status;
+    return statusProcess;
   },
   getStatusSchema,
 );

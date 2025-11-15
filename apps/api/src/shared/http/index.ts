@@ -1,6 +1,6 @@
 import { Elysia } from "elysia";
 import { openapi } from "@elysiajs/openapi";
-import { orchestratorRouter } from "../../modules/gateway/router";
+import { gatewayRouter } from "../../modules/gateway/router";
 import { envs } from "../config/envs";
 
 const app = new Elysia()
@@ -9,7 +9,7 @@ const app = new Elysia()
       path: "/swagger",
     }),
   )
-  .use(orchestratorRouter)
+  .use(gatewayRouter)
   .listen(envs.app.PORT, ({ port, hostname }) =>
     console.log(`Server running on port http://${hostname}:${port}`),
   );

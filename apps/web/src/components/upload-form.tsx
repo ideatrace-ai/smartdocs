@@ -81,9 +81,9 @@ export function UploadForm() {
     }
 
     setIsUploading(true);
-    setUploadProgress(50); // Simulate progress
+    setUploadProgress(50);
 
-    const { data, error } = await api.orchestrator.upload.post({
+    const { data, error } = await api.gatewayRouter.upload.post({
       audio: selectedFile,
     });
 
@@ -102,8 +102,6 @@ export function UploadForm() {
 
     setUploadProgress(100);
 
-    // Eden Treaty returns the response directly in 'data'.
-    // We need to check if it's the cached response (document data) or the 'accepted' status.
     if (
       data &&
       typeof data === "object" &&
@@ -153,56 +151,63 @@ export function UploadForm() {
           <Input
             id="audio-upload"
             type="file"
-                        accept="audio/*,video/mp4,video/quicktime,video/x-m4a"
-                        className="hidden"
-                        onChange={handleFileChange}
-                        ref={fileInputRef}
-                        disabled={isUploading}
-                      />
-                      <Label htmlFor="audio-upload" className="flex flex-col items-center justify-center w-full h-full cursor-pointer">
-                        {selectedFile ? (
-                          <div className="text-center">
-                            <p className="text-lg font-medium">{selectedFile.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              ({(selectedFile.size / (1024 * 1024)).toFixed(2)} MB)
-                            </p>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleRemoveFile();
-                              }}
-                              className="mt-2"
-                              disabled={isUploading}
-                            >
-                              Remove
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center justify-center">
-                            <svg
-                              className="w-10 h-10 mb-3 text-muted-foreground"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="2"
-                                d="M7 16a4 4 0 01-.88-7.903A5 5 0 0115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                              ></path>
-                            </svg>
-                            <p className="mb-2 text-sm text-muted-foreground">
-                              <span className="font-semibold">Click to upload</span> or drag and drop
-                            </p>
-                            <p className="text-xs text-muted-foreground">MP3, M4A, WAV (Video files also accepted, but audio preferred for best results. MAX. {MAX_FILE_SIZE_MB}MB)</p>
-                          </div>
-                        )}
-                      </Label>
+            accept="audio/*,video/mp4,video/quicktime,video/x-m4a"
+            className="hidden"
+            onChange={handleFileChange}
+            ref={fileInputRef}
+            disabled={isUploading}
+          />
+          <Label
+            htmlFor="audio-upload"
+            className="flex flex-col items-center justify-center w-full h-full cursor-pointer"
+          >
+            {selectedFile ? (
+              <div className="text-center">
+                <p className="text-lg font-medium">{selectedFile.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  ({(selectedFile.size / (1024 * 1024)).toFixed(2)} MB)
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleRemoveFile();
+                  }}
+                  className="mt-2"
+                  disabled={isUploading}
+                >
+                  Remove
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center">
+                <svg
+                  className="w-10 h-10 mb-3 text-muted-foreground"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 0115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                  ></path>
+                </svg>
+                <p className="mb-2 text-sm text-muted-foreground">
+                  <span className="font-semibold">Click to upload</span> or drag
+                  and drop
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  MP3, M4A, WAV (Video files also accepted, but audio preferred
+                  for best results. MAX. {MAX_FILE_SIZE_MB}MB)
+                </p>
+              </div>
+            )}
+          </Label>
         </div>
 
         {isUploading && (

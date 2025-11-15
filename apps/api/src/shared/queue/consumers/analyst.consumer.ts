@@ -1,6 +1,9 @@
 import { queueService } from "../services/queue.service";
-import { AnalystWorker, type AnalystPayload } from "../workers/analyst.worker";
-import { QueueNames } from "../../constants";
+import {
+  AnalystWorker,
+  type AnalystPayload,
+} from "../../workers/analyst.worker";
+import { QueueNames } from "../../utils/constants";
 
 const QUEUE_NAME = QueueNames.TRANSCRIPT_ANALYZE;
 

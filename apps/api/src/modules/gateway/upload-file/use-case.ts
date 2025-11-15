@@ -1,13 +1,10 @@
 import { createHash } from "crypto";
 import { db } from "../../../shared/database";
-import {
-  processingStatus,
-  requirementDocuments,
-} from "../../../shared/database/schema";
-import { queueService } from "../../../shared/services/queue.service";
+import { processingStatus } from "../../../shared/database/schema";
+import { queueService } from "../../../shared/queue/services/queue.service";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
-import { ProcessingStatus, QueueNames } from "../../../shared/constants";
+import { ProcessingStatus, QueueNames } from "../../../shared/utils/constants";
 
 export async function handleAudioUpload(audioFile: File) {
   const audioBuffer = await audioFile.arrayBuffer();
