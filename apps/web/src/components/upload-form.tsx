@@ -14,6 +14,8 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { api } from "@/lib/api";
+import { Upload, FileAudio, X, CheckCircle2, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const MAX_FILE_SIZE_MB = 250;
 
@@ -21,47 +23,57 @@ export function UploadForm() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [isDragActive, setIsDragActive] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState<string | null>(null);
+  const [processingDetails, setProcessingDetails] = useState<string | null>(null);
+  const [audioHash, setAudioHash] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (file) {
-        if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-          toast.error("File too large", {
-            description: `Please upload a file smaller than ${MAX_FILE_SIZE_MB}MB.`,
-          });
-          setSelectedFile(null);
-          if (fileInputRef.current) fileInputRef.current.value = "";
-          return;
-        }
-        setSelectedFile(file);
-        setUploadProgress(0);
+        validateAndSetFile(file);
       }
     },
     [],
   );
 
+  const validateAndSetFile = (file: File) => {
+    if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+      toast.error("File too large", {
+        description: `Please upload a file smaller than ${MAX_FILE_SIZE_MB}MB.`,
+      });
+      return;
+    }
+    setSelectedFile(file);
+    setUploadProgress(0);
+    setProcessingStatus(null);
+    setProcessingDetails(null);
+    setAudioHash(null);
+  };
+
   const handleDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
+    setIsDragActive(false);
     const file = event.dataTransfer.files?.[0];
     if (file) {
-      if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-        toast.error("File too large", {
-          description: `Please upload a file smaller than ${MAX_FILE_SIZE_MB}MB.`,
-        });
-        setSelectedFile(null);
-        if (fileInputRef.current) fileInputRef.current.value = "";
-        return;
-      }
-      setSelectedFile(file);
-      setUploadProgress(0);
+      validateAndSetFile(file);
     }
   }, []);
 
   const handleDragOver = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault();
+      setIsDragActive(true);
+    },
+    [],
+  );
+
+  const handleDragLeave = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      setIsDragActive(false);
     },
     [],
   );
@@ -69,7 +81,46 @@ export function UploadForm() {
   const handleRemoveFile = useCallback(() => {
     setSelectedFile(null);
     setUploadProgress(0);
+    setProcessingStatus(null);
+    setProcessingDetails(null);
+    setAudioHash(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }, []);
+
+  const pollStatus = useCallback(async (hash: string) => {
+    const intervalId = setInterval(async () => {
+      try {
+        const { data, error } = await api.gateway.status({ audio_hash: hash }).get();
+
+        if (error) {
+          console.error("Error polling status:", error);
+          return;
+        }
+
+        if (data) {
+          setProcessingStatus(data.status);
+          setProcessingDetails(data.details || null);
+
+          if (data.status === "COMPLETED" || data.status === "FAILED") {
+            clearInterval(intervalId);
+            if (data.status === "COMPLETED") {
+              toast.success("Processing complete!", {
+                description: "Your document is ready.",
+              });
+            } else {
+              toast.error("Processing failed", {
+                description: data.details || "An unknown error occurred.",
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Polling exception:", err);
+      }
+    }, 2000);
+
+    // Cleanup interval on unmount or when status changes (handled by closure but good practice to think about)
+    return () => clearInterval(intervalId);
   }, []);
 
   const handleUpload = useCallback(async () => {
@@ -81,9 +132,10 @@ export function UploadForm() {
     }
 
     setIsUploading(true);
-    setUploadProgress(50);
+    setUploadProgress(10);
+    setProcessingStatus("UPLOADING");
 
-    const { data, error } = await api.gatewayRouter.upload.post({
+    const { data, error } = await api.gateway.upload.post({
       audio: selectedFile,
     });
 
@@ -97,56 +149,84 @@ export function UploadForm() {
       });
       setUploadProgress(0);
       setIsUploading(false);
+      setProcessingStatus("FAILED");
+      setProcessingDetails(errorMessage);
       return;
     }
 
     setUploadProgress(100);
-
-    if (
-      data &&
-      typeof data === "object" &&
-      "status" in data &&
-      data.status === "accepted"
-    ) {
-      toast.success("Upload accepted!", {
-        description: (
-          <div>
-            <p>
-              Audio Hash: <strong>{data.audio_hash}</strong>
-            </p>
-            <p>Processing has started.</p>
-          </div>
-        ),
-        duration: 8000,
-      });
-    } else {
-      toast.success("Cache hit!", {
-        description:
-          "This audio has been processed before. Returning cached document.",
-        duration: 8000,
-      });
-      // You could optionally display the cached 'data' here.
-    }
-
-    handleRemoveFile();
     setIsUploading(false);
-  }, [selectedFile, handleRemoveFile]);
+
+    if (data && typeof data === "object" && "audio_hash" in data) {
+      const hash = (data as any).audio_hash;
+      setAudioHash(hash);
+
+      if ("status" in data && data.status === "accepted") {
+        setProcessingStatus("PENDING_VALIDATION");
+        pollStatus(hash);
+      } else {
+        // Cache hit or immediate result
+        setProcessingStatus("COMPLETED");
+        toast.success("Analysis complete!", {
+          description: "Returning cached result.",
+        });
+      }
+    }
+  }, [selectedFile, pollStatus]);
+
+  const getStatusColor = (status: string | null) => {
+    switch (status) {
+      case "COMPLETED": return "text-green-500";
+      case "FAILED": return "text-red-500";
+      case "UPLOADING":
+      case "PENDING_VALIDATION":
+      case "VALIDATING":
+      case "PENDING_TRANSCRIPTION":
+      case "TRANSCRIBING":
+      case "PENDING_ANALYSIS":
+      case "ANALYZING":
+        return "text-blue-500";
+      default: return "text-muted-foreground";
+    }
+  };
+
+  const getStatusMessage = (status: string | null) => {
+    switch (status) {
+      case "UPLOADING": return "Uploading audio file...";
+      case "PENDING_VALIDATION": return "Queued for validation...";
+      case "VALIDATING": return "Validating audio (Gatekeeper)...";
+      case "PENDING_TRANSCRIPTION": return "Queued for transcription...";
+      case "TRANSCRIBING": return "Transcribing audio...";
+      case "PENDING_ANALYSIS": return "Queued for analysis...";
+      case "ANALYZING": return "Analyzing content...";
+      case "COMPLETED": return "Processing complete!";
+      case "FAILED": return "Processing failed.";
+      default: return "Ready to upload";
+    }
+  };
 
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader>
-        <CardTitle className="text-2xl font-bold text-center">
-          Upload Your Meeting Audio
+    <Card className="w-full max-w-lg mx-auto border-none shadow-2xl bg-card/50 backdrop-blur-xl ring-1 ring-white/10">
+      <CardHeader className="pb-4">
+        <CardTitle className="text-2xl font-bold text-center bg-linear-to-br from-foreground to-muted-foreground bg-clip-text text-transparent">
+          Upload Meeting Audio
         </CardTitle>
-        <CardDescription className="text-center">
-          Drag and drop your audio file here, or click to select.
+        <CardDescription className="text-center text-muted-foreground/80">
+          Drag and drop your recording to generate requirements.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-6">
         <div
           onDrop={handleDrop}
           onDragOver={handleDragOver}
-          className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted/70 transition-colors"
+          onDragLeave={handleDragLeave}
+          className={cn(
+            "relative flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-2xl cursor-pointer transition-all duration-300 ease-in-out group overflow-hidden",
+            isDragActive
+              ? "border-primary bg-primary/5 scale-[1.02]"
+              : "border-muted-foreground/20 hover:border-primary/50 hover:bg-muted/30",
+            selectedFile ? "border-primary/50 bg-primary/5" : ""
+          )}
         >
           <Input
             id="audio-upload"
@@ -155,77 +235,117 @@ export function UploadForm() {
             className="hidden"
             onChange={handleFileChange}
             ref={fileInputRef}
-            disabled={isUploading}
+            disabled={isUploading || (processingStatus !== null && processingStatus !== "FAILED" && processingStatus !== "COMPLETED")}
           />
           <Label
             htmlFor="audio-upload"
-            className="flex flex-col items-center justify-center w-full h-full cursor-pointer"
+            className="flex flex-col items-center justify-center w-full h-full cursor-pointer z-10"
           >
             {selectedFile ? (
-              <div className="text-center">
-                <p className="text-lg font-medium">{selectedFile.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  ({(selectedFile.size / (1024 * 1024)).toFixed(2)} MB)
+              <div className="flex flex-col items-center animate-in fade-in zoom-in duration-300">
+                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4 text-primary">
+                  <FileAudio className="w-8 h-8" />
+                </div>
+                <p className="text-lg font-medium text-foreground max-w-[250px] truncate text-center">
+                  {selectedFile.name}
                 </p>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleRemoveFile();
-                  }}
-                  className="mt-2"
-                  disabled={isUploading}
-                >
-                  Remove
-                </Button>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+                </p>
+                {!processingStatus && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleRemoveFile();
+                    }}
+                    className="mt-4 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    disabled={isUploading}
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Remove File
+                  </Button>
+                )}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center">
-                <svg
-                  className="w-10 h-10 mb-3 text-muted-foreground"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 0115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                  ></path>
-                </svg>
-                <p className="mb-2 text-sm text-muted-foreground">
-                  <span className="font-semibold">Click to upload</span> or drag
-                  and drop
+              <div className="flex flex-col items-center justify-center text-center p-6">
+                <div className={cn(
+                  "w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4 transition-transform duration-300 group-hover:scale-110",
+                  isDragActive ? "bg-primary/20 text-primary" : "text-muted-foreground"
+                )}>
+                  <Upload className="w-8 h-8" />
+                </div>
+                <p className="mb-2 text-lg font-medium text-foreground">
+                  <span className="text-primary">Click to upload</span> or drag and drop
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  MP3, M4A, WAV (Video files also accepted, but audio preferred
-                  for best results. MAX. {MAX_FILE_SIZE_MB}MB)
+                <p className="text-sm text-muted-foreground max-w-xs">
+                  MP3, M4A, WAV, MP4 (Max {MAX_FILE_SIZE_MB}MB)
                 </p>
               </div>
             )}
           </Label>
         </div>
 
-        {isUploading && (
-          <div className="mt-4">
-            <Progress value={uploadProgress} className="w-full" />
-            <p className="text-center text-sm text-muted-foreground mt-2">
-              Uploading...
-            </p>
+        {processingStatus && (
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 p-4 rounded-lg bg-muted/30 border border-white/5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {processingStatus === "COMPLETED" ? (
+                  <CheckCircle2 className="w-5 h-5 text-green-500" />
+                ) : processingStatus === "FAILED" ? (
+                  <X className="w-5 h-5 text-red-500" />
+                ) : (
+                  <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
+                )}
+                <span className={cn("font-medium", getStatusColor(processingStatus))}>
+                  {getStatusMessage(processingStatus)}
+                </span>
+              </div>
+              {processingStatus !== "COMPLETED" && processingStatus !== "FAILED" && (
+                <span className="text-xs text-muted-foreground animate-pulse">Processing...</span>
+              )}
+            </div>
+
+            {processingDetails && (
+              <p className="text-sm text-muted-foreground bg-black/20 p-2 rounded border border-white/5 font-mono">
+                {processingDetails}
+              </p>
+            )}
+
+            {(processingStatus === "COMPLETED" || processingStatus === "FAILED") && (
+              <Button
+                variant="outline"
+                className="w-full mt-2"
+                onClick={handleRemoveFile}
+              >
+                Upload Another File
+              </Button>
+            )}
           </div>
         )}
 
-        <Button
-          onClick={handleUpload}
-          className="w-full mt-6"
-          disabled={!selectedFile || isUploading}
-        >
-          {isUploading ? "Uploading..." : "Start Analysis"}
-        </Button>
+        {!processingStatus && (
+          <Button
+            onClick={handleUpload}
+            className="w-full h-12 text-base font-medium shadow-lg shadow-primary/20 transition-all hover:shadow-primary/30 hover:-translate-y-0.5"
+            disabled={!selectedFile || isUploading}
+            size="lg"
+          >
+            {isUploading ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                Uploading...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-5 h-5 mr-2" />
+                Start Analysis
+              </>
+            )}
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
