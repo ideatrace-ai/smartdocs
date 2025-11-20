@@ -1,9 +1,11 @@
 import { Elysia } from "elysia";
 import { openapi } from "@elysiajs/openapi";
+import { cors } from "@elysiajs/cors";
 import { gatewayRouter } from "../../modules/gateway/router";
 import { envs } from "../config/envs";
 
 const app = new Elysia()
+  .use(cors())
   .use(
     openapi({
       path: "/swagger",

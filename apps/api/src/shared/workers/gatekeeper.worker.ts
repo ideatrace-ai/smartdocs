@@ -1,9 +1,13 @@
 import ffmpeg from "fluent-ffmpeg";
 import path from "path";
-import { mkdir, readFile } from "fs/promises";
-import VAD from "node-webrtcvad";
+
+// Explicitly set paths to system binaries to avoid issues with fluent-ffmpeg looking in node_modules
+ffmpeg.setFfmpegPath("ffmpeg");
+ffmpeg.setFfprobePath("ffprobe");
+
+import { mkdir } from "fs/promises";
 import { queueService } from "../queue/services/queue.service";
-import { whisper } from "@lumen-labs-dev/whisper-node";
+import { whisper } from "whisper-node";
 import { gatekeeperPrompt } from "./prompts/gatekeeper-prompt";
 import { db } from "../database";
 import { processingStatus } from "../database/schema";
@@ -96,13 +100,36 @@ export class GatekeeperWorker {
           `Audio trimmed from ${startTime.toFixed(2)}s and saved to: ${trimmedAudioPath}`,
         );
 
-        const transcript = await whisper(trimmedAudioPath, {
-          modelName: "tiny",
-        });
-        const transcribedText = transcript
-          .map((segment) => segment.speech)
-          .join(" ")
-          .trim();
+        const whisperPath = path.join(
+          process.cwd(),
+          "node_modules/.bun/whisper-node@1.1.1/node_modules/whisper-node/lib/whisper.cpp/main"
+        );
+        const modelPath = path.join(
+          process.cwd(),
+          "node_modules/.bun/whisper-node@1.1.1/node_modules/whisper-node/lib/whisper.cpp/models/ggml-tiny.bin"
+        );
+
+        console.log(`Executing whisper binary: ${whisperPath} -m ${modelPath} -f ${trimmedAudioPath} -otxt`);
+
+        // Execute whisper binary directly to avoid whisper-node parsing issues
+        const { exec } = require("child_process");
+        const util = require("util");
+        const execAsync = util.promisify(exec);
+
+        let transcribedText = "";
+        try {
+          // -otxt outputs to a text file, but we can also read stdout. 
+          // The binary outputs system info to stderr and transcript to stdout if configured, 
+          // but default behavior might be mixed. 
+          // Let's use -nt (no timestamps) and read stdout.
+          const { stdout } = await execAsync(`"${whisperPath}" -m "${modelPath}" -f "${trimmedAudioPath}" -nt`);
+          transcribedText = stdout.trim();
+        } catch (execError) {
+          console.warn("Whisper binary execution failed or produced no output:", execError);
+          // Continue to next attempt if this one failed
+          continue;
+        }
+
         console.log(
           `Lightweight transcript (Attempt ${attempt}): "${transcribedText}"`,
         );
@@ -253,28 +280,43 @@ export class GatekeeperWorker {
   }
 
   private async performVAD(audioPath: string): Promise<number> {
-    const vad = new VAD(16000, 3);
-    const frameDuration = 30;
-    const bytesPerSample = 2;
-    const samplesPerFrame = (16000 / 1000) * frameDuration;
-    const frameSize = samplesPerFrame * bytesPerSample;
+    return new Promise((resolve, reject) => {
+      let silenceDuration = 0;
 
-    const fileBuffer = await readFile(audioPath);
-    const audioData = fileBuffer.slice(44);
+      ffmpeg(audioPath)
+        .audioFilters('silencedetect=noise=-30dB:d=0.5')
+        .format('null')
+        .on('stderr', (line: string) => {
+          // Parse silence_duration from stderr output
+          // Example: [silencedetect @ 0x...] silence_end: 15.2 | silence_duration: 4.7
+          if (line.includes('silence_duration')) {
+            const match = line.match(/silence_duration: (\d+(\.\d+)?)/);
+            if (match && match[1]) {
+              silenceDuration += parseFloat(match[1]);
+            }
+          }
+        })
+        .on('error', (err) => {
+          console.error("ffmpeg VAD error:", err);
+          reject(err);
+        })
+        .on('end', async () => {
+          try {
+            const totalDuration = await this.getAudioDuration(audioPath);
+            if (totalDuration === 0) {
+              resolve(0);
+              return;
+            }
 
-    let speechFrames = 0;
-    let totalFrames = 0;
+            const speechDuration = Math.max(0, totalDuration - silenceDuration);
+            const speechPercentage = (speechDuration / totalDuration) * 100;
 
-    for (let i = 0; i < audioData.length; i += frameSize) {
-      const frame = audioData.slice(i, i + frameSize);
-      if (frame.length === frameSize) {
-        totalFrames++;
-        if (vad.process(frame)) {
-          speechFrames++;
-        }
-      }
-    }
-
-    return totalFrames > 0 ? (speechFrames / totalFrames) * 100 : 0;
+            resolve(speechPercentage);
+          } catch (err) {
+            reject(err);
+          }
+        })
+        .save('/dev/null'); // Output to null since we only care about stderr analysis
+    });
   }
 }
