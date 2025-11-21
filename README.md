@@ -4,15 +4,17 @@ SmartDocs is a local-first, AI-powered system designed to process audio recordin
 
 ## Overview
 
-The core philosophy of SmartDocs is "local-first." Your data is processed on your own hardware without being sent to third-party cloud services. The system listens for an audio file, processes it through an asynchronous pipeline, and saves a detailed, structured JSON document into your local database.
+The core philosophy of SmartDocs is "local-first." Your data is processed on your own hardware without being sent to third-party cloud services. The system listens for an audio file, processes it through an asynchronous pipeline, and generates a structured Markdown requirements document saved to your local filesystem.
 
 ### Features
 
 -   **Local-First Processing**: All processing, from transcription to AI analysis, happens on your machine.
 -   **Event-Driven Architecture**: Built on a robust, scalable architecture using RabbitMQ for asynchronous job processing.
--   **AI-Powered Filtering**: A "Gatekeeper" worker uses a lightweight LLM to quickly discard irrelevant audio (e.g., music, non-technical conversations).
--   **High-Quality Transcription**: Utilizes a local Whisper.cpp model for accurate speech-to-text conversion.
--   **Intelligent Analysis**: A powerful LLM analyzes the transcription to identify action items, features, and bug fixes, structuring them into a formal document.
+-   **AI-Powered Filtering**: A "Gatekeeper" worker uses a lightweight LLM to quickly discard irrelevant audio (e.g., music, noise).
+-   **Multilingual Transcription**: Utilizes Whisper for accurate speech-to-text conversion with support for multiple languages.
+-   **Intelligent Analysis**: A powerful LLM analyzes the transcription to generate professional Software Requirements Specification (SRS) documents.
+-   **Markdown Output**: Generates well-structured, readable Markdown documents instead of raw JSON.
+-   **Document Download**: Download generated requirements documents via a dedicated API endpoint.
 -   **Processing Cache**: Avoids re-processing by caching results based on the audio file's hash.
 -   **Status Tracking**: An API endpoint allows you to monitor the real-time status of your processing job.
 
@@ -21,21 +23,22 @@ The core philosophy of SmartDocs is "local-first." Your data is processed on you
 The system is a TypeScript monorepo managed by Turborepo. The backend is built with Bun and ElysiaJS, communicating with a series of background workers via RabbitMQ.
 
 1.  **API (`apps/api`)**: The main entry point. It receives an audio file, generates a hash, checks for a cached result, and if none exists, places a new job in the `q.audio.new` queue.
-2.  **Gatekeeper Worker**: Consumes from `q.audio.new`. It validates the audio for speech and context. If valid, it passes the job to the `q.audio.transcribe` queue.
+2.  **Gatekeeper Worker**: Consumes from `q.audio.new`. It validates the audio for speech content. If valid, it passes the job to the `q.audio.transcribe` queue.
 3.  **Transcriber Worker**: Consumes from `q.audio.transcribe`. It performs a full transcription of the audio and places the resulting text in the `q.transcript.analyze` queue.
-4.  **Analyst Worker**: Consumes from `q.transcript.analyze`. It uses a powerful LLM to parse the text into a structured JSON document and saves it to the PostgreSQL database.
+4.  **Analyst Worker**: Consumes from `q.transcript.analyze`. It uses a powerful LLM to generate a structured Markdown SRS document and saves it to the filesystem.
 
 ## Tech Stack
 
 -   **Runtime**: Bun
 -   **Backend Framework**: ElysiaJS
+-   **Frontend**: Next.js with React
 -   **Database**: PostgreSQL with Drizzle ORM
 -   **Message Broker**: RabbitMQ
 -   **Local AI**: Ollama
 -   **AI Models**:
-    -   `phi-3:mini` (for classification)
+    -   `phi3:mini` (for classification)
     -   `deepseek-coder` (for analysis)
-    -   `whisper.cpp` (`tiny.en` & `small.en`) (for transcription)
+    -   `nodejs-whisper` with `tiny` & `small` models (for transcription)
 -   **Audio Processing**: FFmpeg
 
 ---
@@ -110,5 +113,8 @@ This command uses Turborepo to run the following services in parallel:
 ## How to Use
 
 1.  Open [http://localhost:3000](http://localhost:3000) in your browser.
-2.  Upload an audio file (MP3, WAV, M4A).
-3.  The system will process the file through the pipeline. You can watch the terminal logs to see the progress of each worker.
+2.  Upload an audio file (MP3, WAV, M4A, MP4).
+3.  The system will process the file through the pipeline. You can watch the progress in the web interface.
+4.  Once processing is complete, click the "Download Requirements Document" button to get your Markdown file.
+5.  Alternatively, access documents via the API at `http://localhost:8080/gateway/download/{audio_hash}`.
+
