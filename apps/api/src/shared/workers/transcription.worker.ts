@@ -1,8 +1,8 @@
 import { queueService } from "../queue/services/queue.service";
 import { db } from "../database";
 import { processingStatus } from "../database/schema";
-import { whisper } from "@lumen-labs-dev/whisper-node";
 import { ProcessingStatus, QueueNames } from "../utils/constants";
+import { nodewhisper } from "nodejs-whisper";
 
 export interface TranscriptionPayload {
   audio_hash: string;
@@ -35,26 +35,37 @@ export class TranscriptionWorker {
 
       console.log(`Starting transcription for audio_hash: ${audio_hash}`);
 
-      const transcript = await whisper(file_path, {
+      const transcript = await nodewhisper(file_path, {
         modelName: "small",
+        autoDownloadModelName: "small",
+        whisperOptions: {
+          outputInText: true,
+          language: "pt",
+          translateToEnglish: false,
+        },
       });
 
-      const full_text = transcript
-        .map((segment) => segment.speech)
-        .join(" ")
-        .trim();
+      const full_text = transcript.trim();
+
+      const cleanedText = full_text
+        .replace(/\[\d{2}:\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}:\d{2}\.\d{3}\]/g, "")
+        .replace(/\[.*?\]/g, "")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+        .join("\n");
 
       console.log(`Transcription complete for audio_hash: ${audio_hash}`);
 
       const message = {
         audio_hash: audio_hash,
-        full_text: full_text,
+        full_text: cleanedText,
       };
 
       await this.updateStatus(audio_hash, ProcessingStatus.PENDING_ANALYSIS);
       await queueService.publish(QueueNames.TRANSCRIPT_ANALYZE, message);
 
-      return { status: "transcription_complete", transcript: full_text };
+      return { status: "transcription_complete", transcript: cleanedText };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
