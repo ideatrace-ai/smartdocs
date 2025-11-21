@@ -12,9 +12,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Progress } from "@/components/ui/progress";
 import { api } from "@/lib/api";
-import { Upload, FileAudio, X, CheckCircle2, Loader2 } from "lucide-react";
+import { Upload, FileAudio, X, CheckCircle2, Loader2, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const MAX_FILE_SIZE_MB = 250;
@@ -22,11 +21,11 @@ const MAX_FILE_SIZE_MB = 250;
 export function UploadForm() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [isDragActive, setIsDragActive] = useState(false);
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
   const [processingDetails, setProcessingDetails] = useState<string | null>(null);
   const [audioHash, setAudioHash] = useState<string | null>(null);
+  const [filePath, setFilePath] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = useCallback(
@@ -47,7 +46,6 @@ export function UploadForm() {
       return;
     }
     setSelectedFile(file);
-    setUploadProgress(0);
     setProcessingStatus(null);
     setProcessingDetails(null);
     setAudioHash(null);
@@ -80,10 +78,10 @@ export function UploadForm() {
 
   const handleRemoveFile = useCallback(() => {
     setSelectedFile(null);
-    setUploadProgress(0);
     setProcessingStatus(null);
     setProcessingDetails(null);
     setAudioHash(null);
+    setFilePath(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, []);
 
@@ -100,10 +98,14 @@ export function UploadForm() {
         if (data) {
           setProcessingStatus(data.status);
           setProcessingDetails(data.details || null);
+          const statusData = data as typeof data & { file_path?: string };
+          if (statusData.file_path) {
+            setFilePath(statusData.file_path);
+          }
 
-          if (data.status === "COMPLETED" || data.status === "FAILED") {
+          if (data.status === "COMPLETE" || data.status === "FAILED") {
             clearInterval(intervalId);
-            if (data.status === "COMPLETED") {
+            if (data.status === "COMPLETE") {
               toast.success("Processing complete!", {
                 description: "Your document is ready.",
               });
@@ -119,7 +121,6 @@ export function UploadForm() {
       }
     }, 2000);
 
-    // Cleanup interval on unmount or when status changes (handled by closure but good practice to think about)
     return () => clearInterval(intervalId);
   }, []);
 
@@ -132,7 +133,6 @@ export function UploadForm() {
     }
 
     setIsUploading(true);
-    setUploadProgress(10);
     setProcessingStatus("UPLOADING");
 
     const { data, error } = await api.gateway.upload.post({
@@ -147,14 +147,12 @@ export function UploadForm() {
       toast.error("Upload failed", {
         description: errorMessage,
       });
-      setUploadProgress(0);
       setIsUploading(false);
       setProcessingStatus("FAILED");
       setProcessingDetails(errorMessage);
       return;
     }
 
-    setUploadProgress(100);
     setIsUploading(false);
 
     if (data && typeof data === "object" && "audio_hash" in data) {
@@ -165,8 +163,7 @@ export function UploadForm() {
         setProcessingStatus("PENDING_VALIDATION");
         pollStatus(hash);
       } else {
-        // Cache hit or immediate result
-        setProcessingStatus("COMPLETED");
+        setProcessingStatus("COMPLETE");
         toast.success("Analysis complete!", {
           description: "Returning cached result.",
         });
@@ -176,7 +173,7 @@ export function UploadForm() {
 
   const getStatusColor = (status: string | null) => {
     switch (status) {
-      case "COMPLETED": return "text-green-500";
+      case "COMPLETE": return "text-green-500";
       case "FAILED": return "text-red-500";
       case "UPLOADING":
       case "PENDING_VALIDATION":
@@ -199,7 +196,7 @@ export function UploadForm() {
       case "TRANSCRIBING": return "Transcribing audio...";
       case "PENDING_ANALYSIS": return "Queued for analysis...";
       case "ANALYZING": return "Analyzing content...";
-      case "COMPLETED": return "Processing complete!";
+      case "COMPLETE": return "Processing complete!";
       case "FAILED": return "Processing failed.";
       default: return "Ready to upload";
     }
@@ -235,7 +232,7 @@ export function UploadForm() {
             className="hidden"
             onChange={handleFileChange}
             ref={fileInputRef}
-            disabled={isUploading || (processingStatus !== null && processingStatus !== "FAILED" && processingStatus !== "COMPLETED")}
+            disabled={isUploading || (processingStatus !== null && processingStatus !== "FAILED" && processingStatus !== "COMPLETE")}
           />
           <Label
             htmlFor="audio-upload"
@@ -292,7 +289,7 @@ export function UploadForm() {
           <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 p-4 rounded-lg bg-muted/30 border border-white/5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                {processingStatus === "COMPLETED" ? (
+                {processingStatus === "COMPLETE" ? (
                   <CheckCircle2 className="w-5 h-5 text-green-500" />
                 ) : processingStatus === "FAILED" ? (
                   <X className="w-5 h-5 text-red-500" />
@@ -303,7 +300,7 @@ export function UploadForm() {
                   {getStatusMessage(processingStatus)}
                 </span>
               </div>
-              {processingStatus !== "COMPLETED" && processingStatus !== "FAILED" && (
+              {processingStatus !== "COMPLETE" && processingStatus !== "FAILED" && (
                 <span className="text-xs text-muted-foreground animate-pulse">Processing...</span>
               )}
             </div>
@@ -314,7 +311,19 @@ export function UploadForm() {
               </p>
             )}
 
-            {(processingStatus === "COMPLETED" || processingStatus === "FAILED") && (
+            {processingStatus === "COMPLETE" && filePath && audioHash && (
+              <Button
+                variant="default"
+                className="w-full mt-2"
+                onClick={() => {
+                  window.open(`http://localhost:8080/gateway/download/${audioHash}`, '_blank');
+                }}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download Requirements Document
+              </Button>
+            )}
+            {(processingStatus === "COMPLETE" || processingStatus === "FAILED") && (
               <Button
                 variant="outline"
                 className="w-full mt-2"
