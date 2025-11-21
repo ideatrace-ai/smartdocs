@@ -1,3 +1,3 @@
 export const gatekeeperPrompt = (text: string) => {
-  return `Você é um classificador de tópicos. O texto a seguir é sobre 'desenvolvimento de software' ou 'outro'? Responda apenas 'SOFTWARE' ou 'OUTRO'. Texto: ${text}`;
+  return `O texto a seguir é uma transcrição de áudio. Se houver qualquer fala humana inteligível (em qualquer idioma), responda 'SOFTWARE'. Apenas se for ruído ou silêncio, responda 'OUTRO'. Responda APENAS com uma das duas palavras. Texto: ${text}`;
 };

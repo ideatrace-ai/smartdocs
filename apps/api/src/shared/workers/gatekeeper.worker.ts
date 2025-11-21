@@ -1,13 +1,12 @@
 import ffmpeg from "fluent-ffmpeg";
 import path from "path";
+import { nodewhisper } from "nodejs-whisper";
 
-// Explicitly set paths to system binaries to avoid issues with fluent-ffmpeg looking in node_modules
 ffmpeg.setFfmpegPath("ffmpeg");
 ffmpeg.setFfprobePath("ffprobe");
 
 import { mkdir } from "fs/promises";
 import { queueService } from "../queue/services/queue.service";
-import { whisper } from "whisper-node";
 import { gatekeeperPrompt } from "./prompts/gatekeeper-prompt";
 import { db } from "../database";
 import { processingStatus } from "../database/schema";
@@ -100,33 +99,20 @@ export class GatekeeperWorker {
           `Audio trimmed from ${startTime.toFixed(2)}s and saved to: ${trimmedAudioPath}`,
         );
 
-        const whisperPath = path.join(
-          process.cwd(),
-          "node_modules/.bun/whisper-node@1.1.1/node_modules/whisper-node/lib/whisper.cpp/main"
-        );
-        const modelPath = path.join(
-          process.cwd(),
-          "node_modules/.bun/whisper-node@1.1.1/node_modules/whisper-node/lib/whisper.cpp/models/ggml-tiny.bin"
-        );
-
-        console.log(`Executing whisper binary: ${whisperPath} -m ${modelPath} -f ${trimmedAudioPath} -otxt`);
-
-        // Execute whisper binary directly to avoid whisper-node parsing issues
-        const { exec } = require("child_process");
-        const util = require("util");
-        const execAsync = util.promisify(exec);
-
         let transcribedText = "";
         try {
-          // -otxt outputs to a text file, but we can also read stdout. 
-          // The binary outputs system info to stderr and transcript to stdout if configured, 
-          // but default behavior might be mixed. 
-          // Let's use -nt (no timestamps) and read stdout.
-          const { stdout } = await execAsync(`"${whisperPath}" -m "${modelPath}" -f "${trimmedAudioPath}" -nt`);
-          transcribedText = stdout.trim();
-        } catch (execError) {
-          console.warn("Whisper binary execution failed or produced no output:", execError);
-          // Continue to next attempt if this one failed
+          transcribedText = await nodewhisper(trimmedAudioPath, {
+            modelName: "tiny",
+            autoDownloadModelName: "tiny",
+            whisperOptions: {
+              outputInText: true,
+            },
+          });
+          transcribedText = transcribedText.trim();
+          transcribedText = transcribedText.replace(/\[\d{2}:\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}:\d{2}\.\d{3}\]/g, "").trim();
+          transcribedText = transcribedText.replace(/\[.*?\]/g, "").trim();
+        } catch (error) {
+          console.warn("Whisper execution failed:", error);
           continue;
         }
 
@@ -196,7 +182,7 @@ export class GatekeeperWorker {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            model: "phi-3:mini",
+            model: "phi3:mini",
             prompt: gatekeeperPrompt(text),
             stream: false,
           }),
@@ -210,11 +196,12 @@ export class GatekeeperWorker {
       }
 
       const result = await response.json();
-      const classification = (result as { response: string }).response
-        .trim()
-        .toUpperCase();
+      const rawResponse = (result as { response: string }).response.trim();
+      console.log(`Ollama raw response: "${rawResponse}"`);
 
-      if (classification === "SOFTWARE") {
+      const classification = rawResponse.toUpperCase();
+
+      if (classification.includes("SOFTWARE")) {
         return "SOFTWARE";
       }
       return "OTHER";
@@ -287,8 +274,6 @@ export class GatekeeperWorker {
         .audioFilters('silencedetect=noise=-30dB:d=0.5')
         .format('null')
         .on('stderr', (line: string) => {
-          // Parse silence_duration from stderr output
-          // Example: [silencedetect @ 0x...] silence_end: 15.2 | silence_duration: 4.7
           if (line.includes('silence_duration')) {
             const match = line.match(/silence_duration: (\d+(\.\d+)?)/);
             if (match && match[1]) {
@@ -316,7 +301,7 @@ export class GatekeeperWorker {
             reject(err);
           }
         })
-        .save('/dev/null'); // Output to null since we only care about stderr analysis
+        .save('/dev/null');
     });
   }
 }
