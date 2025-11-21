@@ -1,4 +1,6 @@
 import { db } from "../database";
+import path from "path";
+import fs from "fs/promises";
 import { processingStatus, requirementDocuments } from "../database/schema";
 import { analystContext } from "./prompts/analyst-prompt";
 import { envs } from "../config/envs";
@@ -34,19 +36,26 @@ export class AnalystWorker {
     try {
       await this.updateStatus(audio_hash, ProcessingStatus.ANALYZING);
 
-      const structuredData = await this.getStructuredDataFromLLM(full_text);
+      const markdownContent = await this.getMarkdownFromLLM(full_text);
 
-      if (!structuredData) {
+      if (!markdownContent) {
         const reason = GatekeeperRejectionReason.LLM_NO_RESPONSE;
-        console.error("Failed to get structured data from LLM.");
+        console.error("Failed to get markdown data from LLM.");
         await this.updateStatus(audio_hash, ProcessingStatus.FAILED, reason);
         return { status: "analyst_failed", reason };
       }
 
-      console.log("Saving structured data to the database...");
+      const outputDir = path.join(process.cwd(), "data", "outputs");
+      const fileName = `${audio_hash}.md`;
+      const filePath = path.join(outputDir, fileName);
+
+      console.log(`Saving markdown document to: ${filePath}`);
+      await fs.writeFile(filePath, markdownContent);
+
+      console.log("Saving document metadata to the database...");
       await db.insert(requirementDocuments).values({
         audio_hash: audio_hash,
-        document_data: structuredData,
+        document_data: { filePath: filePath },
       });
 
       await this.updateStatus(audio_hash, ProcessingStatus.COMPLETE);
@@ -66,7 +75,7 @@ export class AnalystWorker {
     }
   }
 
-  private async getStructuredDataFromLLM(text: string): Promise<object | null> {
+  private async getMarkdownFromLLM(text: string): Promise<string | null> {
     try {
       const response = await fetch(
         `${envs.services.OLLAMA_API_URL}/api/generate`,
@@ -78,7 +87,6 @@ export class AnalystWorker {
             system: analystContext,
             prompt: text,
             stream: false,
-            format: "json",
           }),
         },
       );
@@ -90,11 +98,9 @@ export class AnalystWorker {
       }
 
       const result = await response.json();
-      const jsonString = (result as { response: string }).response;
-
-      return JSON.parse(jsonString);
+      return (result as { response: string }).response;
     } catch (error) {
-      console.error("Error getting structured data from Ollama:", error);
+      console.error("Error getting markdown from Ollama:", error);
       return null;
     }
   }
