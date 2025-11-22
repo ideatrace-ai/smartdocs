@@ -83,7 +83,7 @@ export class AnalystWorker {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            model: "deepseek-coder",
+            model: envs.analytics.ANALYTICS_MODEL,
             system: analystContext,
             prompt: text,
             stream: false,

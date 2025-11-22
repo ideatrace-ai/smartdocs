@@ -4,6 +4,9 @@ export const envs = {
   app: loadAppEnvs(),
   db: loadDbEnvs(),
   services: loadServicesEnvs(),
+  transcription: loadTranscriptionEnvs(),
+  analytics: loadAnalyticsEnvs(),
+  gatekeeper: loadGatekeeperEnvs(),
 };
 
 function loadAppEnvs() {
@@ -28,6 +31,36 @@ function loadDbEnvs() {
 function loadServicesEnvs() {
   const schema = z.object({
     OLLAMA_API_URL: z.url().default("http://localhost:11434"),
+  });
+
+  return schema.parse(process.env);
+}
+
+function loadTranscriptionEnvs() {
+  const schema = z.object({
+    TRANSCRIPTION_MODEL: z.string(),
+    TRANSCRIPTION_LANGUAGE: z.string(),
+  });
+
+  return schema.parse(process.env);
+}
+
+function loadAnalyticsEnvs() {
+  const schema = z.object({
+    ANALYTICS_MODEL: z.string(),
+  });
+
+  return schema.parse(process.env);
+}
+
+function loadGatekeeperEnvs() {
+  const schema = z.object({
+    TRANSCRIPTION_MODEL: z.string(),
+    ANALYTICS_MODEL: z.string(),
+    TRANSCRIPTION_LANGUAGE: z.string(),
+    MAX_RETRIES: z.number().default(3),
+    SAMPLE_DURATION: z.number().default(30),
+    RETRY_ALWAYS: z.boolean().default(false),
   });
 
   return schema.parse(process.env);

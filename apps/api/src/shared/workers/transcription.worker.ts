@@ -3,6 +3,7 @@ import { db } from "../database";
 import { processingStatus } from "../database/schema";
 import { ProcessingStatus, QueueNames } from "../utils/constants";
 import { nodewhisper } from "nodejs-whisper";
+import { envs } from "../config/envs";
 
 export interface TranscriptionPayload {
   audio_hash: string;
@@ -36,11 +37,11 @@ export class TranscriptionWorker {
       console.log(`Starting transcription for audio_hash: ${audio_hash}`);
 
       const transcript = await nodewhisper(file_path, {
-        modelName: "small",
-        autoDownloadModelName: "small",
+        modelName: envs.transcription.TRANSCRIPTION_MODEL,
+        autoDownloadModelName: envs.transcription.TRANSCRIPTION_MODEL,
         whisperOptions: {
           outputInText: true,
-          language: "pt",
+          language: envs.transcription.TRANSCRIPTION_LANGUAGE,
           translateToEnglish: false,
         },
       });
@@ -48,7 +49,10 @@ export class TranscriptionWorker {
       const full_text = transcript.trim();
 
       const cleanedText = full_text
-        .replace(/\[\d{2}:\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}:\d{2}\.\d{3}\]/g, "")
+        .replace(
+          /\[\d{2}:\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}:\d{2}\.\d{3}\]/g,
+          "",
+        )
         .replace(/\[.*?\]/g, "")
         .split("\n")
         .map((line) => line.trim())
