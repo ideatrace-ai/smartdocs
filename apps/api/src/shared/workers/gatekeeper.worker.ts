@@ -79,8 +79,6 @@ export class GatekeeperWorker {
         return { status: "gatekeeper_rejected", reason };
       }
 
-      // --- INÍCIO DA NOVA LÓGICA DE RETRY/VOTAÇÃO ---
-
       const attemptsHistory: string[] = [];
 
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
