@@ -80,6 +80,7 @@ export class GatekeeperWorker {
       }
 
       const attemptsHistory: string[] = [];
+      let softwareDetected = false;
 
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         console.log(`Attempt ${attempt} of ${MAX_RETRIES}...`);
@@ -142,52 +143,36 @@ export class GatekeeperWorker {
 
         attemptsHistory.push(classification);
 
-        if (!envs.gatekeeper.RETRY_ALWAYS && classification === "SOFTWARE") {
-          console.log("Software detected in fast mode. Breaking loop.");
+        if (classification === "SOFTWARE") {
+          console.log(
+            "Software context detected. Proceeding to transcription.",
+          );
+          softwareDetected = true;
           break;
         }
       }
 
-      let finalVerdict = "";
-      const softwareCount = attemptsHistory.filter(
-        (c) => c === "SOFTWARE",
-      ).length;
-      const totalValidAttempts = attemptsHistory.length;
-
-      if (envs.gatekeeper.RETRY_ALWAYS) {
-        const otherCount = totalValidAttempts - softwareCount;
-        console.log(
-          `Decision Mode: VOTING. Score: SOFTWARE (${softwareCount}) vs OTHERS (${otherCount})`,
-        );
-
-        if (softwareCount > otherCount) {
-          finalVerdict = "SOFTWARE";
-        } else {
-          finalVerdict = "OTHER";
-        }
-      } else {
-        finalVerdict = softwareCount > 0 ? "SOFTWARE" : "OTHER";
-      }
-
-      if (finalVerdict === "SOFTWARE") {
+      if (softwareDetected) {
         console.log("Publishing to q.audio.transcribe");
         await this.updateStatus(
           audio_hash,
           ProcessingStatus.PENDING_TRANSCRIPTION,
         );
         await queueService.publish(QueueNames.AUDIO_TRANSCRIBE, payload);
-        return { status: "gatekeeper_success", classification: finalVerdict };
+        return { status: "gatekeeper_success", classification: "SOFTWARE" };
       } else {
         const reason = GatekeeperRejectionReason.INVALID_CONTEXT;
         console.log(
-          `Publishing to q.audio.failed after analysis (Verdict: ${finalVerdict}). History: [${attemptsHistory.join(", ")}]`,
+          `Publishing to q.audio.failed after analysis. History: [${attemptsHistory.join(
+            ", ",
+          )}]`,
         );
         await this.updateStatus(audio_hash, ProcessingStatus.FAILED, reason);
         await queueService.publish(QueueNames.AUDIO_FAILED, {
           audio_hash,
           reason,
         });
-        return { status: "gatekeeper_rejected", classification: finalVerdict };
+        return { status: "gatekeeper_rejected", classification: "OTHER" };
       }
     } catch (error) {
       const errorMessage =

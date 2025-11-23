@@ -58,9 +58,8 @@ function loadGatekeeperEnvs() {
     GATEKEEPER_TRANSCRIPTION_MODEL: z.string(),
     GATEKEEPER_ANALYTICS_MODEL: z.string(),
     TRANSCRIPTION_LANGUAGE: z.string(),
-    MAX_RETRIES: z.number().default(3),
-    SAMPLE_DURATION: z.number().default(30),
-    RETRY_ALWAYS: z.boolean().default(false),
+    MAX_RETRIES: z.coerce.number().default(3),
+    SAMPLE_DURATION: z.coerce.number().default(30),
   });
 
   return schema.parse(process.env);

@@ -55,7 +55,7 @@ These variables are validated in `apps/api/src/shared/config/envs.ts`.
 | `TRANSCRIPTION_LANGUAGE` | Language for transcription. | Yes |
 | `MAX_RETRIES` | Maximum number of times to sample the audio. | `3` |
 | `SAMPLE_DURATION` | Duration (in seconds) of each audio sample. | `30` |
-| `RETRY_ALWAYS`| If 'true', always run the maximum number of retries. | `false` |
+
 
 
 

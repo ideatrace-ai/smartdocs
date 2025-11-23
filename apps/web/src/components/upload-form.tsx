@@ -13,7 +13,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { Upload, FileAudio, X, CheckCircle2, Loader2, Download } from "lucide-react";
+import {
+  Upload,
+  FileAudio,
+  X,
+  CheckCircle2,
+  Loader2,
+  Download,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const MAX_FILE_SIZE_MB = 250;
@@ -23,7 +30,9 @@ export function UploadForm() {
   const [isUploading, setIsUploading] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
-  const [processingDetails, setProcessingDetails] = useState<string | null>(null);
+  const [processingDetails, setProcessingDetails] = useState<string | null>(
+    null,
+  );
   const [audioHash, setAudioHash] = useState<string | null>(null);
   const [filePath, setFilePath] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -88,7 +97,9 @@ export function UploadForm() {
   const pollStatus = useCallback(async (hash: string) => {
     const intervalId = setInterval(async () => {
       try {
-        const { data, error } = await api.gateway.status({ audio_hash: hash }).get();
+        const { data, error } = await api.gateway
+          .status({ audio_hash: hash })
+          .get();
 
         if (error) {
           console.error("Error polling status:", error);
@@ -164,6 +175,10 @@ export function UploadForm() {
         pollStatus(hash);
       } else {
         setProcessingStatus("COMPLETE");
+        const responseData = data as { file_path?: string };
+        if (responseData.file_path) {
+          setFilePath(responseData.file_path);
+        }
         toast.success("Analysis complete!", {
           description: "Returning cached result.",
         });
@@ -173,8 +188,10 @@ export function UploadForm() {
 
   const getStatusColor = (status: string | null) => {
     switch (status) {
-      case "COMPLETE": return "text-green-500";
-      case "FAILED": return "text-red-500";
+      case "COMPLETE":
+        return "text-green-500";
+      case "FAILED":
+        return "text-red-500";
       case "UPLOADING":
       case "PENDING_VALIDATION":
       case "VALIDATING":
@@ -183,22 +200,33 @@ export function UploadForm() {
       case "PENDING_ANALYSIS":
       case "ANALYZING":
         return "text-blue-500";
-      default: return "text-muted-foreground";
+      default:
+        return "text-muted-foreground";
     }
   };
 
   const getStatusMessage = (status: string | null) => {
     switch (status) {
-      case "UPLOADING": return "Uploading audio file...";
-      case "PENDING_VALIDATION": return "Queued for validation...";
-      case "VALIDATING": return "Validating audio (Gatekeeper)...";
-      case "PENDING_TRANSCRIPTION": return "Queued for transcription...";
-      case "TRANSCRIBING": return "Transcribing audio...";
-      case "PENDING_ANALYSIS": return "Queued for analysis...";
-      case "ANALYZING": return "Analyzing content...";
-      case "COMPLETE": return "Processing complete!";
-      case "FAILED": return "Processing failed.";
-      default: return "Ready to upload";
+      case "UPLOADING":
+        return "Uploading audio file...";
+      case "PENDING_VALIDATION":
+        return "Queued for validation...";
+      case "VALIDATING":
+        return "Validating audio (Gatekeeper)...";
+      case "PENDING_TRANSCRIPTION":
+        return "Queued for transcription...";
+      case "TRANSCRIBING":
+        return "Transcribing audio...";
+      case "PENDING_ANALYSIS":
+        return "Queued for analysis...";
+      case "ANALYZING":
+        return "Analyzing content...";
+      case "COMPLETE":
+        return "Processing complete!";
+      case "FAILED":
+        return "Processing failed.";
+      default:
+        return "Ready to upload";
     }
   };
 
@@ -222,7 +250,7 @@ export function UploadForm() {
             isDragActive
               ? "border-primary bg-primary/5 scale-[1.02]"
               : "border-muted-foreground/20 hover:border-primary/50 hover:bg-muted/30",
-            selectedFile ? "border-primary/50 bg-primary/5" : ""
+            selectedFile ? "border-primary/50 bg-primary/5" : "",
           )}
         >
           <Input
@@ -232,7 +260,12 @@ export function UploadForm() {
             className="hidden"
             onChange={handleFileChange}
             ref={fileInputRef}
-            disabled={isUploading || (processingStatus !== null && processingStatus !== "FAILED" && processingStatus !== "COMPLETE")}
+            disabled={
+              isUploading ||
+              (processingStatus !== null &&
+                processingStatus !== "FAILED" &&
+                processingStatus !== "COMPLETE")
+            }
           />
           <Label
             htmlFor="audio-upload"
@@ -268,14 +301,19 @@ export function UploadForm() {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center text-center p-6">
-                <div className={cn(
-                  "w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4 transition-transform duration-300 group-hover:scale-110",
-                  isDragActive ? "bg-primary/20 text-primary" : "text-muted-foreground"
-                )}>
+                <div
+                  className={cn(
+                    "w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4 transition-transform duration-300 group-hover:scale-110",
+                    isDragActive
+                      ? "bg-primary/20 text-primary"
+                      : "text-muted-foreground",
+                  )}
+                >
                   <Upload className="w-8 h-8" />
                 </div>
                 <p className="mb-2 text-lg font-medium text-foreground">
-                  <span className="text-primary">Click to upload</span> or drag and drop
+                  <span className="text-primary">Click to upload</span> or drag
+                  and drop
                 </p>
                 <p className="text-sm text-muted-foreground max-w-xs">
                   MP3, M4A, WAV, MP4 (Max {MAX_FILE_SIZE_MB}MB)
@@ -296,13 +334,21 @@ export function UploadForm() {
                 ) : (
                   <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
                 )}
-                <span className={cn("font-medium", getStatusColor(processingStatus))}>
+                <span
+                  className={cn(
+                    "font-medium",
+                    getStatusColor(processingStatus),
+                  )}
+                >
                   {getStatusMessage(processingStatus)}
                 </span>
               </div>
-              {processingStatus !== "COMPLETE" && processingStatus !== "FAILED" && (
-                <span className="text-xs text-muted-foreground animate-pulse">Processing...</span>
-              )}
+              {processingStatus !== "COMPLETE" &&
+                processingStatus !== "FAILED" && (
+                  <span className="text-xs text-muted-foreground animate-pulse">
+                    Processing...
+                  </span>
+                )}
             </div>
 
             {processingDetails && (
@@ -316,14 +362,18 @@ export function UploadForm() {
                 variant="default"
                 className="w-full mt-2"
                 onClick={() => {
-                  window.open(`http://localhost:8080/gateway/download/${audioHash}`, '_blank');
+                  window.open(
+                    `http://localhost:8080/gateway/download/${audioHash}`,
+                    "_blank",
+                  );
                 }}
               >
                 <Download className="w-4 h-4 mr-2" />
                 Download Requirements Document
               </Button>
             )}
-            {(processingStatus === "COMPLETE" || processingStatus === "FAILED") && (
+            {(processingStatus === "COMPLETE" ||
+              processingStatus === "FAILED") && (
               <Button
                 variant="outline"
                 className="w-full mt-2"

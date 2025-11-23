@@ -19,7 +19,16 @@ export async function handleAudioUpload(audioFile: File) {
 
   if (cachedDocument) {
     console.log(`Cache hit for audio_hash: ${hash}`);
-    return { isCached: true, data: cachedDocument.document_data };
+    const documentData = cachedDocument.document_data as { filePath?: string };
+    return {
+      isCached: true,
+      data: {
+        status: "COMPLETE",
+        message: "Document already exists.",
+        audio_hash: hash,
+        file_path: documentData.filePath || null,
+      },
+    };
   }
 
   console.log(`Cache miss for audio_hash: ${hash}. Processing...`);
