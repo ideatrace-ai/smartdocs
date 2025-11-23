@@ -1,6 +1,63 @@
-# SmartDocs: AI Meeting Analysis
+# Smart Docs
 
-SmartDocs is a local-first, AI-powered system designed to process audio recordings of meetings, transcribe them, and automatically generate structured software requirements documents. It runs entirely on your local machine, leveraging local AI models via Ollama to ensure privacy and control.
+Smart Docs is a tool to extract requirements from audio files.
+
+## Configuration
+
+The backend requires several environment variables to be set for proper operation. These variables are defined in `apps/api/.env.example`. When running with Docker, you should copy this file to `apps/api/.env` and customize the values as needed.
+
+### API Environment Variables
+
+These variables are validated in `apps/api/src/shared/config/envs.ts`.
+
+#### App Configuration (`loadAppEnvs`)
+
+| Variable | Description | Default |
+| :--- | :--- | :--- |
+| `NODE_ENV` | Node.js environment. | `dev` |
+| `PORT` | Port for the API server. | `8080` |
+| `CLIENT_URL` | URL of the frontend application. | `http://localhost:3000` |
+
+#### Database & Queue (`loadDbEnvs`)
+
+| Variable | Description | Required |
+| :--- | :--- | :--- |
+| `DATABASE_URL`| URL for your PostgreSQL database. | Yes |
+| `RABBITMQ_URL`| URL for your RabbitMQ instance. | Yes |
+
+#### Services (`loadServicesEnvs`)
+
+| Variable | Description | Default |
+| :--- | :--- | :--- |
+| `OLLAMA_API_URL`| URL for your local Ollama API server. | `http://localhost:11434` |
+
+#### Workers Configuration
+
+##### Transcription Worker (`loadTranscriptionEnvs`)
+
+| Variable | Description | Required |
+| :--- | :--- | :--- |
+| `TRANSCRIPTION_MODEL` | Model used for audio transcription (e.g., 'tiny'). | Yes |
+| `TRANSCRIPTION_LANGUAGE`| Language used for transcription (e.g., 'en', 'pt'). | Yes |
+
+##### Analyst Worker (`loadAnalyticsEnvs`)
+
+| Variable | Description | Required |
+| :--- | :--- | :--- |
+| `ANALYTICS_MODEL` | Ollama model used for analysis (e.g., 'llama3'). | Yes |
+
+##### Gatekeeper Worker (`loadGatekeeperEnvs`)
+
+| Variable | Description | Default/Required |
+| :--- | :--- | :--- |
+| `GATEKEEPER_TRANSCRIPTION_MODEL` | Model used for fast transcription by the Gatekeeper. | Yes |
+| `GATEKEEPER_ANALYTICS_MODEL` | Model used for context validation by the Gatekeeper. | Yes |
+| `TRANSCRIPTION_LANGUAGE` | Language for transcription. | Yes |
+| `MAX_RETRIES` | Maximum number of times to sample the audio. | `3` |
+| `SAMPLE_DURATION` | Duration (in seconds) of each audio sample. | `30` |
+| `RETRY_ALWAYS`| If 'true', always run the maximum number of retries. | `false` |
+
+
 
 ## Overview
 

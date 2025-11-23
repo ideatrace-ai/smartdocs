@@ -104,8 +104,9 @@ export class GatekeeperWorker {
         let transcribedText = "";
         try {
           transcribedText = await nodewhisper(trimmedAudioPath, {
-            modelName: envs.gatekeeper.TRANSCRIPTION_MODEL,
-            autoDownloadModelName: envs.gatekeeper.TRANSCRIPTION_MODEL,
+            modelName: envs.gatekeeper.GATEKEEPER_TRANSCRIPTION_MODEL,
+            autoDownloadModelName:
+              envs.gatekeeper.GATEKEEPER_TRANSCRIPTION_MODEL,
             whisperOptions: {
               outputInText: true,
               language: envs.gatekeeper.TRANSCRIPTION_LANGUAGE,
@@ -215,7 +216,7 @@ export class GatekeeperWorker {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            model: envs.gatekeeper.ANALYTICS_MODEL,
+            model: envs.gatekeeper.GATEKEEPER_ANALYTICS_MODEL,
             prompt: gatekeeperPrompt(text),
             stream: false,
           }),

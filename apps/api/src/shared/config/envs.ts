@@ -55,8 +55,8 @@ function loadAnalyticsEnvs() {
 
 function loadGatekeeperEnvs() {
   const schema = z.object({
-    TRANSCRIPTION_MODEL: z.string(),
-    ANALYTICS_MODEL: z.string(),
+    GATEKEEPER_TRANSCRIPTION_MODEL: z.string(),
+    GATEKEEPER_ANALYTICS_MODEL: z.string(),
     TRANSCRIPTION_LANGUAGE: z.string(),
     MAX_RETRIES: z.number().default(3),
     SAMPLE_DURATION: z.number().default(30),
