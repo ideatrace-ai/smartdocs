@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   title: "Ideatrace - SmartDocs",
   description: "Upload your meeting audio for analysis",
   icons: {
-    icon: "/logo.png",
+    icon: "/logo-with-name.png",
   },
 };
 

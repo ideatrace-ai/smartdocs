@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Text } from "@/components/ui/text";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import {
@@ -18,15 +20,18 @@ import {
   FileAudio,
   X,
   CheckCircle2,
-  Loader2,
   Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { EditorModal } from "./editor-modal";
+import { marked } from "marked";
+import { envs } from "@/envs";
 
 const MAX_FILE_SIZE_MB = 250;
 
 export function UploadForm() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [originalFilename, setOriginalFilename] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
@@ -34,8 +39,30 @@ export function UploadForm() {
     null,
   );
   const [audioHash, setAudioHash] = useState<string | null>(null);
-  const [filePath, setFilePath] = useState<string | null>(null);
+  const [initialHtmlContent, setInitialHtmlContent] = useState<string | null>(
+    null,
+  );
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchMarkdownContent = useCallback(async (hash: string) => {
+    try {
+      const response = await fetch(
+        `${envs.NEXT_PUBLIC_API_URL}/gateway/download/${hash}`,
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const mdContent = await response.text();
+      const htmlContent = await marked(mdContent);
+      setInitialHtmlContent(htmlContent);
+    } catch (error) {
+      console.error("Error fetching markdown content:", error);
+      toast.error("Failed to load document content.", {
+        description: "Please try downloading it directly.",
+      });
+    }
+  }, []);
 
   const handleFileChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -55,6 +82,7 @@ export function UploadForm() {
       return;
     }
     setSelectedFile(file);
+    setOriginalFilename(file.name);
     setProcessingStatus(null);
     setProcessingDetails(null);
     setAudioHash(null);
@@ -87,12 +115,35 @@ export function UploadForm() {
 
   const handleRemoveFile = useCallback(() => {
     setSelectedFile(null);
+    setOriginalFilename(null);
     setProcessingStatus(null);
     setProcessingDetails(null);
     setAudioHash(null);
-    setFilePath(null);
+    setInitialHtmlContent(null);
+    setIsEditorOpen(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, []);
+
+  const handleOriginalDownload = useCallback(async () => {
+    if (audioHash && originalFilename) {
+      const response = await fetch(
+        `${envs.NEXT_PUBLIC_API_URL}/gateway/download/${audioHash}`,
+      );
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+
+      const basename =
+        originalFilename.split(".").slice(0, -1).join(".") || audioHash;
+      a.download = `${basename}.md`;
+
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  }, [audioHash, originalFilename]);
 
   const pollStatus = useCallback(async (hash: string) => {
     const intervalId = setInterval(async () => {
@@ -110,9 +161,6 @@ export function UploadForm() {
           setProcessingStatus(data.status);
           setProcessingDetails(data.details || null);
           const statusData = data as typeof data & { file_path?: string };
-          if (statusData.file_path) {
-            setFilePath(statusData.file_path);
-          }
 
           if (data.status === "COMPLETE" || data.status === "FAILED") {
             clearInterval(intervalId);
@@ -120,6 +168,9 @@ export function UploadForm() {
               toast.success("Processing complete!", {
                 description: "Your document is ready.",
               });
+              if (hash) {
+                fetchMarkdownContent(hash);
+              }
             } else {
               toast.error("Processing failed", {
                 description: data.details || "An unknown error occurred.",
@@ -175,65 +226,41 @@ export function UploadForm() {
         pollStatus(hash);
       } else {
         setProcessingStatus("COMPLETE");
-        const responseData = data as { file_path?: string };
-        if (responseData.file_path) {
-          setFilePath(responseData.file_path);
+        const responseData = data as {
+          file_path?: string;
+          audio_hash?: string;
+        };
+        if (responseData.audio_hash) {
+          fetchMarkdownContent(responseData.audio_hash);
         }
         toast.success("Analysis complete!", {
           description: "Returning cached result.",
         });
       }
     }
-  }, [selectedFile, pollStatus]);
+  }, [selectedFile, pollStatus, fetchMarkdownContent]);
 
-  const getStatusColor = (status: string | null) => {
-    switch (status) {
-      case "COMPLETE":
-        return "text-green-500";
-      case "FAILED":
-        return "text-red-500";
-      case "UPLOADING":
-      case "PENDING_VALIDATION":
-      case "VALIDATING":
-      case "PENDING_TRANSCRIPTION":
-      case "TRANSCRIBING":
-      case "PENDING_ANALYSIS":
-      case "ANALYZING":
-        return "text-blue-500";
-      default:
-        return "text-muted-foreground";
-    }
+  const STATUS_MESSAGES: Record<string, string> = {
+    UPLOADING: "Uploading audio file...",
+    PENDING_VALIDATION: "Queued for validation...",
+    VALIDATING: "Validating audio (Gatekeeper)...",
+    PENDING_TRANSCRIPTION: "Queued for transcription...",
+    TRANSCRIBING: "Transcribing audio...",
+    PENDING_ANALYSIS: "Queued for analysis...",
+    ANALYZING: "Analyzing content...",
+    COMPLETE: "Processing complete!",
+    FAILED: "Processing failed.",
   };
 
   const getStatusMessage = (status: string | null) => {
-    switch (status) {
-      case "UPLOADING":
-        return "Uploading audio file...";
-      case "PENDING_VALIDATION":
-        return "Queued for validation...";
-      case "VALIDATING":
-        return "Validating audio (Gatekeeper)...";
-      case "PENDING_TRANSCRIPTION":
-        return "Queued for transcription...";
-      case "TRANSCRIBING":
-        return "Transcribing audio...";
-      case "PENDING_ANALYSIS":
-        return "Queued for analysis...";
-      case "ANALYZING":
-        return "Analyzing content...";
-      case "COMPLETE":
-        return "Processing complete!";
-      case "FAILED":
-        return "Processing failed.";
-      default:
-        return "Ready to upload";
-    }
+    if (!status) return "Ready to upload";
+    return STATUS_MESSAGES[status] || "Ready to upload";
   };
 
   return (
     <Card className="w-full max-w-lg mx-auto border-none shadow-2xl bg-card/50 backdrop-blur-xl ring-1 ring-white/10">
       <CardHeader className="pb-4">
-        <CardTitle className="text-2xl font-bold text-center bg-linear-to-br from-foreground to-muted-foreground bg-clip-text text-transparent">
+        <CardTitle className="text-2xl font-bold text-center">
           Upload Meeting Audio
         </CardTitle>
         <CardDescription className="text-center text-muted-foreground/80">
@@ -284,8 +311,7 @@ export function UploadForm() {
                 </p>
                 {!processingStatus && (
                   <Button
-                    variant="ghost"
-                    size="sm"
+                    variant="outline"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -311,10 +337,9 @@ export function UploadForm() {
                 >
                   <Upload className="w-8 h-8" />
                 </div>
-                <p className="mb-2 text-lg font-medium text-foreground">
-                  <span className="text-primary">Click to upload</span> or drag
-                  and drop
-                </p>
+                <div className="mb-2 text-lg font-medium text-foreground">
+                  <span className="text-primary">Click to upload</span> or drag and drop
+                </div>
                 <p className="text-sm text-muted-foreground max-w-xs">
                   MP3, M4A, WAV, MP4 (Max {MAX_FILE_SIZE_MB}MB)
                 </p>
@@ -331,23 +356,15 @@ export function UploadForm() {
                   <CheckCircle2 className="w-5 h-5 text-green-500" />
                 ) : processingStatus === "FAILED" ? (
                   <X className="w-5 h-5 text-red-500" />
-                ) : (
-                  <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
-                )}
-                <span
-                  className={cn(
-                    "font-medium",
-                    getStatusColor(processingStatus),
-                  )}
-                >
-                  {getStatusMessage(processingStatus)}
-                </span>
+                ) : null}
+                {getStatusMessage(processingStatus)}
               </div>
               {processingStatus !== "COMPLETE" &&
                 processingStatus !== "FAILED" && (
-                  <span className="text-xs text-muted-foreground animate-pulse">
-                    Processing...
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <Spinner size="size-4" />
+                    <Text variant="shine" className="text-sm text-muted-foreground">Processing...</Text>
+                  </div>
                 )}
             </div>
 
@@ -357,44 +374,57 @@ export function UploadForm() {
               </p>
             )}
 
-            {processingStatus === "COMPLETE" && filePath && audioHash && (
-              <Button
-                variant="default"
-                className="w-full mt-2"
-                onClick={() => {
-                  window.open(
-                    `http://localhost:8080/gateway/download/${audioHash}`,
-                    "_blank",
-                  );
-                }}
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Download Requirements Document
-              </Button>
+            {processingStatus === "COMPLETE" && (
+              <div className="grid grid-cols-2 gap-2 mt-4">
+                <Button
+                  variant="outline"
+                  onClick={handleOriginalDownload}
+                  disabled={!audioHash || !originalFilename}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Original
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={() => setIsEditorOpen(true)}
+                  disabled={!initialHtmlContent}
+                >
+                  Open Editor
+                </Button>
+              </div>
             )}
+
             {(processingStatus === "COMPLETE" ||
               processingStatus === "FAILED") && (
-              <Button
-                variant="outline"
-                className="w-full mt-2"
-                onClick={handleRemoveFile}
-              >
-                Upload Another File
-              </Button>
-            )}
+                <Button
+                  variant="outline"
+                  className="w-full mt-2 bg-white text-black hover:bg-gray-100"
+                  onClick={handleRemoveFile}
+                >
+                  Upload Another File
+                </Button>
+              )}
           </div>
         )}
 
+        <EditorModal
+          isOpen={isEditorOpen}
+          onClose={() => setIsEditorOpen(false)}
+          initialHtmlContent={initialHtmlContent || ""}
+          audioHash={audioHash}
+          originalFilename={originalFilename}
+        />
         {!processingStatus && (
           <Button
             onClick={handleUpload}
-            className="w-full h-12 text-base font-medium shadow-lg shadow-primary/20 transition-all hover:shadow-primary/30 hover:-translate-y-0.5"
+            variant="outline"
+            className="w-full h-12 text-base font-medium shadow-lg shadow-primary/20 transition-all hover:shadow-primary/30 hover:-translate-y-0.5 bg-white text-black hover:bg-gray-100"
             disabled={!selectedFile || isUploading}
-            size="lg"
           >
             {isUploading ? (
               <>
-                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                <Spinner size="size-5" className="mr-2" />
                 Uploading...
               </>
             ) : (
