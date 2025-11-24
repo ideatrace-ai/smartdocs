@@ -41,19 +41,20 @@ export const EditorModal = ({
   const handleDownload = useCallback(() => {
     if (audioHash) {
       const markdown = turndownService.turndown(currentHtmlContent);
-            const blob = new Blob([markdown], { type: "text/markdown" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-      
-            const basename =
-              originalFilename?.split(".").slice(0, -1).join(".") || audioHash;
-            a.download = `${basename}.md`;
-      
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);    }
+      const blob = new Blob([markdown], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+
+      const basename =
+        originalFilename?.split(".").slice(0, -1).join(".") || audioHash;
+      a.download = `${basename}.md`;
+
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
   }, [audioHash, currentHtmlContent, turndownService, originalFilename]);
 
   return (
@@ -72,7 +73,7 @@ export const EditorModal = ({
           <Button
             onClick={handleDownload}
             variant="default"
-            className="bg-white text-black hover:bg-gray-100"
+            className="inline-flex items-center bg-white text-black hover:bg-gray-100"
           >
             <Download className="w-4 h-4 mr-2" /> Download
           </Button>
