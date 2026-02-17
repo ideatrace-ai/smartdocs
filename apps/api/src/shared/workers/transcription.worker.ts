@@ -3,6 +3,7 @@ import { ProcessingStatus, QueueNames } from "../utils/constants";
 import { nodewhisper } from "nodejs-whisper";
 import { envs } from "../config/envs";
 import { updateStatus } from "../utils/update-status";
+import { logger } from "../utils/logger";
 
 export interface TranscriptionPayload {
   audio_hash: string;
@@ -14,12 +15,13 @@ export class TranscriptionWorker {
     payload: TranscriptionPayload,
   ): Promise<{ status: string; transcript: string }> {
     const { audio_hash, file_path } = payload;
-    console.log("TranscriptionWorker received:", audio_hash);
+    const log = logger.child({ worker: "transcription", audio_hash });
+    log.info("Received payload");
 
     try {
       await updateStatus(audio_hash, ProcessingStatus.TRANSCRIBING);
 
-      console.log(`Starting transcription for audio_hash: ${audio_hash}`);
+      log.info("Starting transcription");
 
       const transcript = await nodewhisper(file_path, {
         modelName: envs.transcription.TRANSCRIPTION_MODEL,
@@ -44,7 +46,9 @@ export class TranscriptionWorker {
         .filter((line) => line.length > 0)
         .join("\n");
 
-      console.log(`Transcription complete for audio_hash: ${audio_hash}`);
+      log.info("Transcription complete", {
+        length: cleanedText.length,
+      });
 
       const message = {
         audio_hash: audio_hash,
@@ -58,7 +62,7 @@ export class TranscriptionWorker {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      console.error("Error during transcription:", errorMessage);
+      log.error("Transcription failed", { error: errorMessage });
       await updateStatus(
         audio_hash,
         ProcessingStatus.FAILED,

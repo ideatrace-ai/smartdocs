@@ -4,6 +4,9 @@ import amqp, {
   type ConsumeMessage,
 } from "amqplib";
 import { envs } from "../../config/envs";
+import { logger } from "../../utils/logger";
+
+const log = logger.child({ module: "queue" });
 
 let connection: Connection | null = null;
 let isReconnecting = false;
@@ -22,20 +25,20 @@ async function connect(): Promise<Connection> {
     )) as any as Connection;
 
     connection.on("error", (err) => {
-      console.error("RabbitMQ connection error:", err);
+      log.error("RabbitMQ connection error", { error: err.message });
       connection = null;
       scheduleReconnect();
     });
     connection.on("close", () => {
-      console.log("RabbitMQ connection closed.");
+      log.info("RabbitMQ connection closed");
       connection = null;
     });
 
-    console.log("Connected to RabbitMQ");
+    log.info("Connected to RabbitMQ");
     isReconnecting = false;
     return connection;
   } catch (error) {
-    console.error("Failed to connect to RabbitMQ", error);
+    log.error("Failed to connect to RabbitMQ", { error: error instanceof Error ? error.message : String(error) });
     connection = null;
     throw error;
   }
@@ -49,14 +52,12 @@ function scheduleReconnect() {
   const tryReconnect = async () => {
     attempt++;
     if (attempt > MAX_RECONNECT_ATTEMPTS) {
-      console.error(
-        `RabbitMQ: failed to reconnect after ${MAX_RECONNECT_ATTEMPTS} attempts`,
-      );
+      log.error(`RabbitMQ: failed to reconnect after ${MAX_RECONNECT_ATTEMPTS} attempts`);
       isReconnecting = false;
       return;
     }
     try {
-      console.log(`RabbitMQ reconnect attempt ${attempt}/${MAX_RECONNECT_ATTEMPTS}...`);
+      log.info(`RabbitMQ reconnect attempt ${attempt}/${MAX_RECONNECT_ATTEMPTS}`);
       await connect();
     } catch {
       setTimeout(tryReconnect, RECONNECT_DELAY_MS * attempt);
@@ -92,7 +93,7 @@ export const queueService = {
       channel.sendToQueue(queue, Buffer.from(JSON.stringify(message)), {
         persistent: true,
       });
-      console.log(`Sent message to queue ${queue}:`, message);
+      log.info(`Message sent to queue ${queue}`);
     } finally {
       await channel.close();
     }
@@ -113,7 +114,7 @@ export const queueService = {
       },
     });
     await channel.prefetch(1);
-    console.log(`Waiting for messages in queue: ${queue}`);
+    log.info(`Waiting for messages in queue: ${queue}`);
 
     channel.consume(
       queue,
@@ -124,7 +125,7 @@ export const queueService = {
             await onMessage(content);
             channel.ack(msg);
           } catch (error) {
-            console.error("Error processing message:", error);
+            log.error("Error processing message", { error: error instanceof Error ? error.message : String(error) });
             // Send to dead-letter queue instead of silently discarding
             channel.nack(msg, false, false);
           }

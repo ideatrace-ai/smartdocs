@@ -3,6 +3,7 @@ import { openapi } from "@elysiajs/openapi";
 import { cors } from "@elysiajs/cors";
 import { gatewayRouter } from "../../modules/gateway/router";
 import { envs } from "../config/envs";
+import { logger } from "../utils/logger";
 
 const app = new Elysia()
   .use(cors())
@@ -13,7 +14,7 @@ const app = new Elysia()
   )
   .use(gatewayRouter)
   .listen(envs.app.PORT, ({ port, hostname }) =>
-    console.log(`Server running on port http://${hostname}:${port}`),
+    logger.info(`Server running on http://${hostname}:${port}`),
   );
 
 export type App = typeof app;

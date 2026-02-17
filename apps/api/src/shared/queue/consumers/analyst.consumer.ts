@@ -4,19 +4,21 @@ import {
   type AnalystPayload,
 } from "../../workers/analyst.worker";
 import { QueueNames } from "../../utils/constants";
+import { logger } from "../../utils/logger";
 
+const log = logger.child({ consumer: "analyst" });
 const QUEUE_NAME = QueueNames.TRANSCRIPT_ANALYZE;
 
 async function main() {
-  console.log("Starting analyst consumer...");
+  log.info("Starting analyst consumer");
 
   const worker = new AnalystWorker();
 
   await queueService.consume(QUEUE_NAME, async (payload) => {
-    console.log(`Received message from ${QUEUE_NAME}:`, payload);
+    log.info(`Received message from ${QUEUE_NAME}`);
 
     if (!isAnalystPayload(payload)) {
-      console.error("Invalid message payload:", payload);
+      log.error("Invalid message payload", { payload });
       return;
     }
 
@@ -33,6 +35,8 @@ function isAnalystPayload(payload: any): payload is AnalystPayload {
 }
 
 main().catch((error) => {
-  console.error("Consumer failed to start:", error);
+  log.error("Consumer failed to start", {
+    error: error instanceof Error ? error.message : String(error),
+  });
   process.exit(1);
 });

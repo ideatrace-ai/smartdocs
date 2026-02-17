@@ -17,6 +17,7 @@ import {
 import { updateStatus } from "../utils/update-status";
 import { ollamaGenerate } from "../services/ollama.service";
 import { cleanupFiles } from "../utils/temp-files";
+import { logger } from "../utils/logger";
 
 export interface GatekeeperPayload {
   audio_hash: string;
@@ -25,8 +26,9 @@ export interface GatekeeperPayload {
 
 export class GatekeeperWorker {
   async perform(payload: GatekeeperPayload) {
-    console.log("GatekeeperWorker received:", payload);
     const { audio_hash, file_path } = payload;
+    const log = logger.child({ worker: "gatekeeper", audio_hash });
+    log.info("Received payload");
     const MAX_RETRIES = envs.gatekeeper.MAX_RETRIES;
     const SAMPLE_DURATION = envs.gatekeeper.SAMPLE_DURATION;
     const tempFiles: string[] = [];
@@ -42,11 +44,11 @@ export class GatekeeperWorker {
 
       await this.convertAudioForVAD(file_path, vadAudioPath);
       const speechPercentage = await this.performVAD(vadAudioPath);
-      console.log(`Speech percentage: ${speechPercentage.toFixed(2)}%`);
+      log.info(`Speech percentage: ${speechPercentage.toFixed(2)}%`);
 
       if (speechPercentage < 10) {
         const reason = GatekeeperRejectionReason.NO_SPEECH;
-        console.log(`Audio rejected due to low speech percentage.`);
+        log.warn("Audio rejected due to low speech percentage");
         await updateStatus(audio_hash, ProcessingStatus.FAILED, reason);
         await queueService.publish(QueueNames.AUDIO_FAILED, {
           audio_hash,
@@ -58,9 +60,7 @@ export class GatekeeperWorker {
       const duration = await this.getAudioDuration(file_path);
       if (duration < SAMPLE_DURATION) {
         const reason = GatekeeperRejectionReason.AUDIO_TOO_SHORT;
-        console.log(
-          "Audio rejected because it's shorter than the sample duration.",
-        );
+        log.warn("Audio rejected: shorter than sample duration");
         await updateStatus(audio_hash, ProcessingStatus.FAILED, reason);
         await queueService.publish(QueueNames.AUDIO_FAILED, {
           audio_hash,
@@ -73,7 +73,7 @@ export class GatekeeperWorker {
       let softwareDetected = false;
 
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-        console.log(`Attempt ${attempt} of ${MAX_RETRIES}...`);
+        log.info(`Classification attempt ${attempt}/${MAX_RETRIES}`);
 
         const maxStartTime = duration - SAMPLE_DURATION;
         const startTime = Math.random() * maxStartTime;
@@ -89,9 +89,7 @@ export class GatekeeperWorker {
           startTime,
           SAMPLE_DURATION,
         );
-        console.log(
-          `Audio trimmed from ${startTime.toFixed(2)}s and saved to: ${trimmedAudioPath}`,
-        );
+        log.debug(`Audio trimmed from ${startTime.toFixed(2)}s`);
 
         let transcribedText = "";
         try {
@@ -114,37 +112,33 @@ export class GatekeeperWorker {
             .trim();
           transcribedText = transcribedText.replace(/\[.*?\]/g, "").trim();
         } catch (error) {
-          console.warn("Whisper execution failed:", error);
+          log.warn("Whisper execution failed", {
+            error: error instanceof Error ? error.message : String(error),
+          });
           continue;
         }
 
-        console.log(
-          `Lightweight transcript (Attempt ${attempt}): "${transcribedText}"`,
-        );
+        log.debug(`Transcript (attempt ${attempt}): "${transcribedText.substring(0, 100)}..."`);
 
         if (!transcribedText) {
-          console.log("Transcription is empty, continuing to next attempt.");
+          log.info("Transcription is empty, continuing to next attempt");
           continue;
         }
 
         const classification = await this.classifyWithOllama(transcribedText);
-        console.log(
-          `Ollama classification (Attempt ${attempt}): ${classification}`,
-        );
+        log.info(`Classification result: ${classification}`, { attempt });
 
         attemptsHistory.push(classification);
 
         if (classification === "SOFTWARE") {
-          console.log(
-            "Software context detected. Proceeding to transcription.",
-          );
+          log.info("Software context detected, proceeding to transcription");
           softwareDetected = true;
           break;
         }
       }
 
       if (softwareDetected) {
-        console.log("Publishing to q.audio.transcribe");
+        log.info("Publishing to transcription queue");
         await updateStatus(
           audio_hash,
           ProcessingStatus.PENDING_TRANSCRIPTION,
@@ -153,11 +147,9 @@ export class GatekeeperWorker {
         return { status: "gatekeeper_success", classification: "SOFTWARE" };
       } else {
         const reason = GatekeeperRejectionReason.INVALID_CONTEXT;
-        console.log(
-          `Publishing to q.audio.failed after analysis. History: [${attemptsHistory.join(
-            ", ",
-          )}]`,
-        );
+        log.warn("Audio rejected after analysis", {
+          history: attemptsHistory,
+        });
         await updateStatus(audio_hash, ProcessingStatus.FAILED, reason);
         await queueService.publish(QueueNames.AUDIO_FAILED, {
           audio_hash,
@@ -168,7 +160,7 @@ export class GatekeeperWorker {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      console.error("Error in GatekeeperWorker:", errorMessage);
+      log.error("Worker failed", { error: errorMessage });
       await updateStatus(
         audio_hash,
         ProcessingStatus.FAILED,
@@ -195,12 +187,12 @@ export class GatekeeperWorker {
     });
 
     if (!result) {
-      console.error("Ollama classification returned no result");
+      logger.error("Ollama classification returned no result");
       return "OTHER";
     }
 
     const classification = result.trim().toUpperCase();
-    console.log(`Ollama raw response: "${result.trim()}"`);
+    logger.debug(`Ollama raw response: "${result.trim()}"`);
 
     if (classification.includes("SOFTWARE")) {
       return "SOFTWARE";
@@ -218,13 +210,8 @@ export class GatekeeperWorker {
         .audioCodec("pcm_s16le")
         .audioChannels(1)
         .audioFrequency(16000)
-        .on("error", (err) => {
-          console.error("ffmpeg error:", err);
-          reject(err);
-        })
-        .on("end", () => {
-          resolve();
-        })
+        .on("error", (err) => reject(err))
+        .on("end", () => resolve())
         .save(outputPath);
     });
   }
@@ -233,7 +220,6 @@ export class GatekeeperWorker {
     return new Promise((resolve, reject) => {
       ffmpeg.ffprobe(inputPath, (err, metadata) => {
         if (err) {
-          console.error("ffprobe error:", err);
           reject(err);
           return;
         }
@@ -252,13 +238,8 @@ export class GatekeeperWorker {
       ffmpeg(inputPath)
         .setStartTime(startTime)
         .setDuration(duration)
-        .on("error", (err) => {
-          console.error("ffmpeg error:", err);
-          reject(err);
-        })
-        .on("end", () => {
-          resolve();
-        })
+        .on("error", (err) => reject(err))
+        .on("end", () => resolve())
         .save(outputPath);
     });
   }
@@ -278,10 +259,7 @@ export class GatekeeperWorker {
             }
           }
         })
-        .on("error", (err) => {
-          console.error("ffmpeg VAD error:", err);
-          reject(err);
-        })
+        .on("error", (err) => reject(err))
         .on("end", async () => {
           try {
             const totalDuration = await this.getAudioDuration(audioPath);

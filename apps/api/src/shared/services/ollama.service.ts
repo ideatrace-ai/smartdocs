@@ -1,4 +1,7 @@
 import { envs } from "../config/envs";
+import { logger } from "../utils/logger";
+
+const log = logger.child({ service: "ollama" });
 
 const DEFAULT_TIMEOUT_MS = 120_000; // 2 minutes
 const DEFAULT_MAX_RETRIES = 3;
@@ -71,9 +74,7 @@ export async function ollamaGenerate(
       const errorMsg =
         error instanceof Error ? error.message : String(error);
 
-      console.error(
-        `Ollama request failed (attempt ${attempt}/${maxRetries}): ${errorMsg}`,
-      );
+      log.error(`Request failed (attempt ${attempt}/${maxRetries}): ${errorMsg}`, { model });
 
       if (isLastAttempt) {
         return null;

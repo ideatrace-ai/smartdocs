@@ -1,5 +1,6 @@
 import path from "path";
 import { db } from "../../../shared/database";
+import { logger } from "../../../shared/utils/logger";
 
 const ALLOWED_OUTPUT_DIR = path.resolve(process.cwd(), "data", "outputs");
 
@@ -15,7 +16,7 @@ export async function getDownloadFilePath(audio_hash: string) {
         if (filePath) {
             const resolvedPath = path.resolve(filePath);
             if (!resolvedPath.startsWith(ALLOWED_OUTPUT_DIR)) {
-                console.error(`Path traversal attempt blocked: ${filePath}`);
+                logger.error("Path traversal attempt blocked", { filePath });
                 return null;
             }
             return resolvedPath;

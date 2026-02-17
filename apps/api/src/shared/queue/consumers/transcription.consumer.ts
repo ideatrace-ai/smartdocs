@@ -4,19 +4,21 @@ import {
   type TranscriptionPayload,
 } from "../../workers/transcription.worker";
 import { QueueNames } from "../../utils/constants";
+import { logger } from "../../utils/logger";
 
+const log = logger.child({ consumer: "transcription" });
 const QUEUE_NAME = QueueNames.AUDIO_TRANSCRIBE;
 
 async function main() {
-  console.log("Starting transcription consumer...");
+  log.info("Starting transcription consumer");
 
   const worker = new TranscriptionWorker();
 
   await queueService.consume(QUEUE_NAME, async (payload) => {
-    console.log(`Received message from ${QUEUE_NAME}:`, payload);
+    log.info(`Received message from ${QUEUE_NAME}`);
 
     if (!isTranscriptionPayload(payload)) {
-      console.error("Invalid message payload:", payload);
+      log.error("Invalid message payload", { payload });
       return;
     }
 
@@ -33,6 +35,8 @@ function isTranscriptionPayload(payload: any): payload is TranscriptionPayload {
 }
 
 main().catch((error) => {
-  console.error("Consumer failed to start:", error);
+  log.error("Consumer failed to start", {
+    error: error instanceof Error ? error.message : String(error),
+  });
   process.exit(1);
 });

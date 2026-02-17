@@ -5,6 +5,7 @@ import { queueService } from "../../../shared/queue/services/queue.service";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { ProcessingStatus, QueueNames } from "../../../shared/utils/constants";
+import { logger } from "../../../shared/utils/logger";
 
 export async function handleAudioUpload(audioFile: File) {
   const audioBuffer = await audioFile.arrayBuffer();
@@ -18,7 +19,7 @@ export async function handleAudioUpload(audioFile: File) {
   });
 
   if (cachedDocument) {
-    console.log(`Cache hit for audio_hash: ${hash}`);
+    logger.info(`Cache hit for audio_hash: ${hash}`);
     const documentData = cachedDocument.document_data as { filePath?: string };
     return {
       isCached: true,
@@ -31,7 +32,7 @@ export async function handleAudioUpload(audioFile: File) {
     };
   }
 
-  console.log(`Cache miss for audio_hash: ${hash}. Processing...`);
+  logger.info(`Cache miss for audio_hash: ${hash}. Processing...`);
 
   const dataDir = path.join(process.cwd(), "data", "audio_files");
   await mkdir(dataDir, { recursive: true });
@@ -39,7 +40,7 @@ export async function handleAudioUpload(audioFile: File) {
   const safeExtension = path.extname(path.basename(audioFile.name)) || ".wav";
   const filePath = path.join(dataDir, `${hash}${safeExtension}`);
   await writeFile(filePath, Buffer.from(audioBuffer));
-  console.log(`Audio file saved to: ${filePath}`);
+  logger.info(`Audio file saved to: ${filePath}`);
 
   await db
     .insert(processingStatus)
