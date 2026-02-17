@@ -28,11 +28,21 @@ import { marked } from "marked";
 import { envs } from "@/envs";
 
 const MAX_FILE_SIZE_MB = 250;
+const POLL_INTERVAL_MS = 3000;
+const MAX_POLL_ERRORS = 5;
+
+interface UploadResponse {
+  status: string;
+  message: string;
+  audio_hash: string;
+  file_path?: string | null;
+}
 
 export function UploadForm() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [originalFilename, setOriginalFilename] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [isDragActive, setIsDragActive] = useState(false);
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
   const [processingDetails, setProcessingDetails] = useState<string | null>(
@@ -44,6 +54,15 @@ export function UploadForm() {
   );
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const stopPolling = useCallback(() => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  }, []);
 
   const fetchMarkdownContent = useCallback(async (hash: string) => {
     try {
@@ -114,6 +133,11 @@ export function UploadForm() {
   );
 
   const handleRemoveFile = useCallback(() => {
+    stopPolling();
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
     setSelectedFile(null);
     setOriginalFilename(null);
     setProcessingStatus(null);
@@ -121,8 +145,9 @@ export function UploadForm() {
     setAudioHash(null);
     setInitialHtmlContent(null);
     setIsEditorOpen(false);
+    setUploadProgress(0);
     if (fileInputRef.current) fileInputRef.current.value = "";
-  }, []);
+  }, [stopPolling]);
 
   const handleOriginalDownload = useCallback(async () => {
     if (audioHash && originalFilename) {
@@ -145,46 +170,72 @@ export function UploadForm() {
     }
   }, [audioHash, originalFilename]);
 
-  const pollStatus = useCallback(async (hash: string) => {
-    const intervalId = setInterval(async () => {
-      try {
-        const { data, error } = await api.gateway
-          .status({ audio_hash: hash })
-          .get();
+  const pollStatus = useCallback(
+    async (hash: string) => {
+      let consecutiveErrors = 0;
 
-        if (error) {
-          console.error("Error polling status:", error);
-          return;
-        }
+      const intervalId = setInterval(async () => {
+        try {
+          const { data, error } = await api.gateway
+            .status({ audio_hash: hash })
+            .get();
 
-        if (data) {
-          setProcessingStatus(data.status);
-          setProcessingDetails(data.details || null);
-          const statusData = data as typeof data & { file_path?: string };
-
-          if (data.status === "COMPLETE" || data.status === "FAILED") {
-            clearInterval(intervalId);
-            if (data.status === "COMPLETE") {
-              toast.success("Processing complete!", {
-                description: "Your document is ready.",
-              });
-              if (hash) {
-                fetchMarkdownContent(hash);
-              }
-            } else {
-              toast.error("Processing failed", {
-                description: data.details || "An unknown error occurred.",
+          if (error) {
+            consecutiveErrors++;
+            if (consecutiveErrors >= MAX_POLL_ERRORS) {
+              clearInterval(intervalId);
+              pollingRef.current = null;
+              setProcessingStatus("FAILED");
+              setProcessingDetails(
+                "Lost connection to server. Please try again.",
+              );
+              toast.error("Connection lost", {
+                description: "Unable to check processing status.",
               });
             }
+            return;
+          }
+
+          consecutiveErrors = 0;
+
+          if (data) {
+            setProcessingStatus(data.status);
+            setProcessingDetails(data.details || null);
+
+            if (data.status === "COMPLETE" || data.status === "FAILED") {
+              clearInterval(intervalId);
+              pollingRef.current = null;
+              if (data.status === "COMPLETE") {
+                toast.success("Processing complete!", {
+                  description: "Your document is ready.",
+                });
+                if (hash) {
+                  fetchMarkdownContent(hash);
+                }
+              } else {
+                toast.error("Processing failed", {
+                  description: data.details || "An unknown error occurred.",
+                });
+              }
+            }
+          }
+        } catch (err) {
+          consecutiveErrors++;
+          if (consecutiveErrors >= MAX_POLL_ERRORS) {
+            clearInterval(intervalId);
+            pollingRef.current = null;
+            setProcessingStatus("FAILED");
+            setProcessingDetails(
+              "Lost connection to server. Please try again.",
+            );
           }
         }
-      } catch (err) {
-        console.error("Polling exception:", err);
-      }
-    }, 2000);
+      }, POLL_INTERVAL_MS);
 
-    return () => clearInterval(intervalId);
-  }, []);
+      pollingRef.current = intervalId;
+    },
+    [fetchMarkdownContent],
+  );
 
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
@@ -196,49 +247,105 @@ export function UploadForm() {
 
     setIsUploading(true);
     setProcessingStatus("UPLOADING");
+    setUploadProgress(0);
 
-    const { data, error } = await api.gateway.upload.post({
-      audio: selectedFile,
-    });
+    try {
+      // Use XMLHttpRequest for upload progress tracking
+      const formData = new FormData();
+      formData.append("audio", selectedFile);
 
-    if (error) {
-      const errorMessage =
-        typeof error.value === "string"
-          ? error.value
-          : "An unexpected error occurred.";
-      toast.error("Upload failed", {
-        description: errorMessage,
-      });
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
+      const uploadResult = await new Promise<UploadResponse>(
+        (resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+
+          xhr.upload.addEventListener("progress", (event) => {
+            if (event.lengthComputable) {
+              const percent = Math.round((event.loaded / event.total) * 100);
+              setUploadProgress(percent);
+            }
+          });
+
+          xhr.addEventListener("load", () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                resolve(JSON.parse(xhr.responseText));
+              } catch {
+                reject(new Error("Invalid response from server"));
+              }
+            } else {
+              reject(
+                new Error(
+                  `Upload failed with status ${xhr.status}`,
+                ),
+              );
+            }
+          });
+
+          xhr.addEventListener("error", () =>
+            reject(new Error("Network error during upload")),
+          );
+
+          xhr.addEventListener("abort", () =>
+            reject(new Error("Upload cancelled")),
+          );
+
+          controller.signal.addEventListener("abort", () => xhr.abort());
+
+          xhr.open("POST", `${envs.NEXT_PUBLIC_API_URL}/gateway/upload`);
+          xhr.send(formData);
+        },
+      );
+
+      abortControllerRef.current = null;
       setIsUploading(false);
-      setProcessingStatus("FAILED");
-      setProcessingDetails(errorMessage);
-      return;
-    }
+      setUploadProgress(0);
 
-    setIsUploading(false);
-
-    if (data && typeof data === "object" && "audio_hash" in data) {
-      const hash = (data as any).audio_hash;
+      const hash = uploadResult.audio_hash;
       setAudioHash(hash);
 
-      if ("status" in data && data.status === "accepted") {
+      if (uploadResult.status === "accepted") {
         setProcessingStatus("PENDING_VALIDATION");
         pollStatus(hash);
       } else {
         setProcessingStatus("COMPLETE");
-        const responseData = data as {
-          file_path?: string;
-          audio_hash?: string;
-        };
-        if (responseData.audio_hash) {
-          fetchMarkdownContent(responseData.audio_hash);
+        if (hash) {
+          fetchMarkdownContent(hash);
         }
         toast.success("Analysis complete!", {
           description: "Returning cached result.",
         });
       }
+    } catch (error) {
+      abortControllerRef.current = null;
+      const errorMessage =
+        error instanceof Error ? error.message : "An unexpected error occurred.";
+
+      if (errorMessage === "Upload cancelled") {
+        setProcessingStatus(null);
+      } else {
+        toast.error("Upload failed", {
+          description: errorMessage,
+        });
+        setProcessingStatus("FAILED");
+        setProcessingDetails(errorMessage);
+      }
+      setIsUploading(false);
+      setUploadProgress(0);
     }
   }, [selectedFile, pollStatus, fetchMarkdownContent]);
+
+  const handleCancelUpload = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsUploading(false);
+    setUploadProgress(0);
+    setProcessingStatus(null);
+  }, []);
 
   const STATUS_MESSAGES: Record<string, string> = {
     UPLOADING: "Uploading audio file...",
@@ -368,6 +475,21 @@ export function UploadForm() {
                 )}
             </div>
 
+            {processingStatus === "UPLOADING" && uploadProgress > 0 && (
+              <div className="space-y-1">
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Uploading...</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-primary h-full rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
             {processingDetails && (
               <p className="text-sm text-muted-foreground bg-black/20 p-2 rounded border border-white/5 font-mono">
                 {processingDetails}
@@ -393,6 +515,20 @@ export function UploadForm() {
                   Open Editor
                 </Button>
               </div>
+            )}
+
+            {isUploading && (
+              <Button
+                variant="outline"
+                className="w-full mt-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleCancelUpload();
+                }}
+              >
+                <X className="w-4 h-4 mr-2" />
+                Cancel Upload
+              </Button>
             )}
 
             {(processingStatus === "COMPLETE" ||
