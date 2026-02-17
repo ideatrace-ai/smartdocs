@@ -35,7 +35,9 @@ export async function handleAudioUpload(audioFile: File) {
 
   const dataDir = path.join(process.cwd(), "data", "audio_files");
   await mkdir(dataDir, { recursive: true });
-  const filePath = path.join(dataDir, `${hash}${path.extname(audioFile.name)}`);
+
+  const safeExtension = path.extname(path.basename(audioFile.name)) || ".wav";
+  const filePath = path.join(dataDir, `${hash}${safeExtension}`);
   await writeFile(filePath, Buffer.from(audioBuffer));
   console.log(`Audio file saved to: ${filePath}`);
 

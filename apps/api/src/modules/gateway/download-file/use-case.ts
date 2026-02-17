@@ -1,4 +1,7 @@
+import path from "path";
 import { db } from "../../../shared/database";
+
+const ALLOWED_OUTPUT_DIR = path.resolve(process.cwd(), "data", "outputs");
 
 export async function getDownloadFilePath(audio_hash: string) {
     const document = await db.query.requirementDocuments.findFirst({
@@ -7,7 +10,16 @@ export async function getDownloadFilePath(audio_hash: string) {
 
     if (document && document.document_data) {
         const data = document.document_data as { filePath?: string };
-        return data.filePath || null;
+        const filePath = data.filePath || null;
+
+        if (filePath) {
+            const resolvedPath = path.resolve(filePath);
+            if (!resolvedPath.startsWith(ALLOWED_OUTPUT_DIR)) {
+                console.error(`Path traversal attempt blocked: ${filePath}`);
+                return null;
+            }
+            return resolvedPath;
+        }
     }
 
     return null;
