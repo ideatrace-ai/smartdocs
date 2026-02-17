@@ -1,9 +1,8 @@
 import { queueService } from "../queue/services/queue.service";
-import { db } from "../database";
-import { processingStatus } from "../database/schema";
 import { ProcessingStatus, QueueNames } from "../utils/constants";
 import { nodewhisper } from "nodejs-whisper";
 import { envs } from "../config/envs";
+import { updateStatus } from "../utils/update-status";
 
 export interface TranscriptionPayload {
   audio_hash: string;
@@ -11,20 +10,6 @@ export interface TranscriptionPayload {
 }
 
 export class TranscriptionWorker {
-  private async updateStatus(
-    audio_hash: string,
-    status: string,
-    details?: string,
-  ) {
-    await db
-      .insert(processingStatus)
-      .values({ audio_hash, status, details })
-      .onConflictDoUpdate({
-        target: processingStatus.audio_hash,
-        set: { status, details, updated_at: new Date() },
-      });
-  }
-
   async perform(
     payload: TranscriptionPayload,
   ): Promise<{ status: string; transcript: string }> {
@@ -32,7 +17,7 @@ export class TranscriptionWorker {
     console.log("TranscriptionWorker received:", audio_hash);
 
     try {
-      await this.updateStatus(audio_hash, ProcessingStatus.TRANSCRIBING);
+      await updateStatus(audio_hash, ProcessingStatus.TRANSCRIBING);
 
       console.log(`Starting transcription for audio_hash: ${audio_hash}`);
 
@@ -66,7 +51,7 @@ export class TranscriptionWorker {
         full_text: cleanedText,
       };
 
-      await this.updateStatus(audio_hash, ProcessingStatus.PENDING_ANALYSIS);
+      await updateStatus(audio_hash, ProcessingStatus.PENDING_ANALYSIS);
       await queueService.publish(QueueNames.TRANSCRIPT_ANALYZE, message);
 
       return { status: "transcription_complete", transcript: cleanedText };
@@ -74,10 +59,10 @@ export class TranscriptionWorker {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       console.error("Error during transcription:", errorMessage);
-      await this.updateStatus(
+      await updateStatus(
         audio_hash,
         ProcessingStatus.FAILED,
-        errorMessage,
+        `Transcription failed: ${errorMessage}`,
       );
       await queueService.publish(QueueNames.AUDIO_FAILED, {
         audio_hash: audio_hash,

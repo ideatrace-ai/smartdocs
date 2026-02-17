@@ -8,14 +8,15 @@ ffmpeg.setFfprobePath("ffprobe");
 import { mkdir } from "fs/promises";
 import { queueService } from "../queue/services/queue.service";
 import { gatekeeperPrompt } from "./prompts/gatekeeper-prompt";
-import { db } from "../database";
-import { processingStatus } from "../database/schema";
 import { envs } from "../config/envs";
 import {
   ProcessingStatus,
   GatekeeperRejectionReason,
   QueueNames,
 } from "../utils/constants";
+import { updateStatus } from "../utils/update-status";
+import { ollamaGenerate } from "../services/ollama.service";
+import { cleanupFiles } from "../utils/temp-files";
 
 export interface GatekeeperPayload {
   audio_hash: string;
@@ -23,33 +24,22 @@ export interface GatekeeperPayload {
 }
 
 export class GatekeeperWorker {
-  private async updateStatus(
-    audio_hash: string,
-    status: string,
-    details?: string,
-  ) {
-    await db
-      .insert(processingStatus)
-      .values({ audio_hash, status, details })
-      .onConflictDoUpdate({
-        target: processingStatus.audio_hash,
-        set: { status, details, updated_at: new Date() },
-      });
-  }
-
   async perform(payload: GatekeeperPayload) {
     console.log("GatekeeperWorker received:", payload);
     const { audio_hash, file_path } = payload;
     const MAX_RETRIES = envs.gatekeeper.MAX_RETRIES;
     const SAMPLE_DURATION = envs.gatekeeper.SAMPLE_DURATION;
+    const tempFiles: string[] = [];
 
     try {
-      await this.updateStatus(audio_hash, ProcessingStatus.VALIDATING);
+      await updateStatus(audio_hash, ProcessingStatus.VALIDATING);
 
       const tempDir = path.join(process.cwd(), "data", "temp");
       await mkdir(tempDir, { recursive: true });
 
       const vadAudioPath = path.join(tempDir, `${audio_hash}_vad.wav`);
+      tempFiles.push(vadAudioPath);
+
       await this.convertAudioForVAD(file_path, vadAudioPath);
       const speechPercentage = await this.performVAD(vadAudioPath);
       console.log(`Speech percentage: ${speechPercentage.toFixed(2)}%`);
@@ -57,7 +47,7 @@ export class GatekeeperWorker {
       if (speechPercentage < 10) {
         const reason = GatekeeperRejectionReason.NO_SPEECH;
         console.log(`Audio rejected due to low speech percentage.`);
-        await this.updateStatus(audio_hash, ProcessingStatus.FAILED, reason);
+        await updateStatus(audio_hash, ProcessingStatus.FAILED, reason);
         await queueService.publish(QueueNames.AUDIO_FAILED, {
           audio_hash,
           reason,
@@ -71,7 +61,7 @@ export class GatekeeperWorker {
         console.log(
           "Audio rejected because it's shorter than the sample duration.",
         );
-        await this.updateStatus(audio_hash, ProcessingStatus.FAILED, reason);
+        await updateStatus(audio_hash, ProcessingStatus.FAILED, reason);
         await queueService.publish(QueueNames.AUDIO_FAILED, {
           audio_hash,
           reason,
@@ -91,6 +81,7 @@ export class GatekeeperWorker {
           tempDir,
           `${audio_hash}_trimmed_attempt_${attempt}.wav`,
         );
+        tempFiles.push(trimmedAudioPath);
 
         await this.trimAudio(
           file_path,
@@ -154,7 +145,7 @@ export class GatekeeperWorker {
 
       if (softwareDetected) {
         console.log("Publishing to q.audio.transcribe");
-        await this.updateStatus(
+        await updateStatus(
           audio_hash,
           ProcessingStatus.PENDING_TRANSCRIPTION,
         );
@@ -167,7 +158,7 @@ export class GatekeeperWorker {
             ", ",
           )}]`,
         );
-        await this.updateStatus(audio_hash, ProcessingStatus.FAILED, reason);
+        await updateStatus(audio_hash, ProcessingStatus.FAILED, reason);
         await queueService.publish(QueueNames.AUDIO_FAILED, {
           audio_hash,
           reason,
@@ -178,7 +169,7 @@ export class GatekeeperWorker {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       console.error("Error in GatekeeperWorker:", errorMessage);
-      await this.updateStatus(
+      await updateStatus(
         audio_hash,
         ProcessingStatus.FAILED,
         errorMessage,
@@ -188,46 +179,33 @@ export class GatekeeperWorker {
         error: errorMessage,
       });
       return { status: "gatekeeper_failed" };
+    } finally {
+      await cleanupFiles(tempFiles);
     }
   }
 
   private async classifyWithOllama(
     text: string,
   ): Promise<"SOFTWARE" | "OTHER"> {
-    try {
-      const response = await fetch(
-        `${envs.services.OLLAMA_API_URL}/api/generate`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: envs.gatekeeper.GATEKEEPER_ANALYTICS_MODEL,
-            prompt: gatekeeperPrompt(text),
-            stream: false,
-          }),
-        },
-      );
+    const result = await ollamaGenerate({
+      model: envs.gatekeeper.GATEKEEPER_ANALYTICS_MODEL,
+      prompt: gatekeeperPrompt(text),
+      timeoutMs: 30_000,
+      maxRetries: 2,
+    });
 
-      if (!response.ok) {
-        throw new Error(
-          `Ollama API request failed with status ${response.status}`,
-        );
-      }
-
-      const result = await response.json();
-      const rawResponse = (result as { response: string }).response.trim();
-      console.log(`Ollama raw response: "${rawResponse}"`);
-
-      const classification = rawResponse.toUpperCase();
-
-      if (classification.includes("SOFTWARE")) {
-        return "SOFTWARE";
-      }
-      return "OTHER";
-    } catch (error) {
-      console.error("Error classifying with Ollama:", error);
+    if (!result) {
+      console.error("Ollama classification returned no result");
       return "OTHER";
     }
+
+    const classification = result.trim().toUpperCase();
+    console.log(`Ollama raw response: "${result.trim()}"`);
+
+    if (classification.includes("SOFTWARE")) {
+      return "SOFTWARE";
+    }
+    return "OTHER";
   }
 
   private convertAudioForVAD(
