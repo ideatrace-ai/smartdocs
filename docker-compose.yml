@@ -2,7 +2,6 @@ services:
   postgres:
     image: postgres:15
     container_name: smartdocs-db
-    env_file: .env.docker
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mysecretpassword}
@@ -13,7 +12,11 @@ services:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-smartdocs}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-smartdocs}",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
