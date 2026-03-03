@@ -59,43 +59,55 @@ These variables are validated in `apps/api/src/shared/config/envs.ts`.
 
 
 
+#### AI Configuration (`loadAiEnvs`)
+
+These variables allow you to switch between different AI providers. If no provider is specified and no API keys are provided, the system defaults to **Ollama** (local).
+
+| Variable | Description | Default |
+| :--- | :--- | :--- |
+| `AI_PROVIDER` | Preferred provider (`gemini`, `openai`, `anthropic`, `ollama`). | `ollama` |
+| `GEMINI_API_KEY` | API Key for Google Gemini. | Optional |
+| `OPENAI_API_KEY` | API Key for OpenAI (GPT). | Optional |
+| `ANTHROPIC_API_KEY`| API Key for Anthropic (Claude). | Optional |
+| `AI_MODEL` | Specific model to use (e.g., `gpt-4o`, `claude-3-5-sonnet`). | Provider Default |
+
 ## Overview
 
-The core philosophy of SmartDocs is "local-first." Your data is processed on your own hardware without being sent to third-party cloud services. The system listens for an audio file, processes it through an asynchronous pipeline, and generates a structured Markdown requirements document saved to your local filesystem.
+The core philosophy of SmartDocs is "local-first," but it offers the flexibility to use powerful cloud-based AI models when needed. Your data can be processed entirely on your own hardware using Ollama, or you can provide your own API keys for professional-grade analysis via Gemini, OpenAI, or Anthropic.
 
 ### Features
 
--   **Local-First Processing**: All processing, from transcription to AI analysis, happens on your machine.
+-   **Flexible AI Providers**: Choose between local-first processing (Ollama) or high-performance cloud models (Gemini, OpenAI, Anthropic).
+-   **User-Provided API Keys**: Users can enter their own AI API keys directly in the web interface for custom processing.
+-   **Local Fallback**: If no API keys are provided, the system seamlessly falls back to your local Ollama instance.
 -   **Event-Driven Architecture**: Built on a robust, scalable architecture using RabbitMQ for asynchronous job processing.
 -   **AI-Powered Filtering**: A "Gatekeeper" worker uses a lightweight LLM to quickly discard irrelevant audio (e.g., music, noise).
 -   **Multilingual Transcription**: Utilizes Whisper for accurate speech-to-text conversion with support for multiple languages.
--   **Intelligent Analysis**: A powerful LLM analyzes the transcription to generate professional Software Requirements Specification (SRS) documents.
+-   **Intelligent Analysis**: Generates professional Software Requirements Specification (SRS) documents using the provider of your choice.
 -   **Markdown Output**: Generates well-structured, readable Markdown documents instead of raw JSON.
--   **Document Download**: Download generated requirements documents via a dedicated API endpoint.
+-   **Interactive Editor**: View and edit the generated requirements directly in the browser.
 -   **Processing Cache**: Avoids re-processing by caching results based on the audio file's hash.
--   **Status Tracking**: An API endpoint allows you to monitor the real-time status of your processing job.
 
 ## Architecture
 
 The system is a TypeScript monorepo managed by Turborepo. The backend is built with Bun and ElysiaJS, communicating with a series of background workers via RabbitMQ.
 
-1.  **API (`apps/api`)**: The main entry point. It receives an audio file, generates a hash, checks for a cached result, and if none exists, places a new job in the `q.audio.new` queue.
-2.  **Gatekeeper Worker**: Consumes from `q.audio.new`. It validates the audio for speech content. If valid, it passes the job to the `q.audio.transcribe` queue.
-3.  **Transcriber Worker**: Consumes from `q.audio.transcribe`. It performs a full transcription of the audio and places the resulting text in the `q.transcript.analyze` queue.
-4.  **Analyst Worker**: Consumes from `q.transcript.analyze`. It uses a powerful LLM to generate a structured Markdown SRS document and saves it to the filesystem.
+1.  **API (`apps/api`)**: The main entry point. It receives an audio file and optional AI configurations (provider/key), generates a hash, and places a new job in the `q.audio.new` queue.
+2.  **Gatekeeper Worker**: Consumes from `q.audio.new`. It validates the audio for speech content using the selected AI provider.
+3.  **Transcriber Worker**: Consumes from `q.audio.transcribe`. It performs a full transcription of the audio using local Whisper.
+4.  **Analyst Worker**: Consumes from `q.transcript.analyze`. It uses the selected AI provider (Local or Cloud) to generate a structured Markdown SRS document.
 
 ## Tech Stack
 
 -   **Runtime**: Bun
 -   **Backend Framework**: ElysiaJS
--   **Frontend**: Next.js with React
+-   **Frontend**: Next.js with React & Tailwind CSS
 -   **Database**: PostgreSQL with Drizzle ORM
 -   **Message Broker**: RabbitMQ
--   **Local AI**: Ollama
--   **AI Models**:
-    -   `phi3:mini` (for classification)
-    -   `deepseek-coder` (for analysis)
-    -   `nodejs-whisper` with `tiny` & `small` models (for transcription)
+-   **AI Services**:
+    -   **Local**: Ollama (phi3, llama3, etc.)
+    -   **Cloud**: Google Gemini, OpenAI (GPT), Anthropic (Claude)
+    -   **Transcription**: `nodejs-whisper` (local)
 -   **Audio Processing**: FFmpeg
 
 ---
