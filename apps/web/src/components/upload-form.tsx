@@ -53,9 +53,33 @@ export function UploadForm() {
     null,
   );
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  
+  // AI Settings
+  const [provider, setProvider] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("ai_provider") || "ollama";
+    }
+    return "ollama";
+  });
+  const [apiKey, setApiKey] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("ai_api_key") || "";
+    }
+    return "";
+  });
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Persist settings
+  React.useEffect(() => {
+    localStorage.setItem("ai_provider", provider);
+  }, [provider]);
+
+  React.useEffect(() => {
+    localStorage.setItem("ai_api_key", apiKey);
+  }, [apiKey]);
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
@@ -253,6 +277,8 @@ export function UploadForm() {
       // Use XMLHttpRequest for upload progress tracking
       const formData = new FormData();
       formData.append("audio", selectedFile);
+      if (apiKey) formData.append("api_key", apiKey);
+      if (provider) formData.append("provider", provider);
 
       const controller = new AbortController();
       abortControllerRef.current = controller;
@@ -454,6 +480,57 @@ export function UploadForm() {
             )}
           </Label>
         </div>
+
+        {!processingStatus && (
+          <div className="space-y-4 p-4 rounded-xl bg-muted/20 border border-white/5 animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-1.5 rounded-md bg-primary/10 text-primary">
+                <Upload className="w-4 h-4" />
+              </div>
+              <Label className="text-sm font-semibold">AI Configuration</Label>
+            </div>
+            
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="provider" className="text-xs text-muted-foreground uppercase tracking-wider">
+                  Provider
+                </Label>
+                <select
+                  id="provider"
+                  value={provider}
+                  onChange={(e) => setProvider(e.target.value)}
+                  className="w-full bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+                >
+                  <option value="ollama">Local (Ollama)</option>
+                  <option value="gemini">Gemini</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="anthropic">Anthropic</option>
+                </select>
+              </div>
+
+              {provider !== "ollama" && (
+                <div className="space-y-2 animate-in fade-in slide-in-from-right-2">
+                  <Label htmlFor="api-key" className="text-xs text-muted-foreground uppercase tracking-wider">
+                    API Key
+                  </Label>
+                  <Input
+                    id="api-key"
+                    type="password"
+                    placeholder="Enter your key..."
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    className="bg-background/50 border-white/10 focus:border-primary/50 h-9"
+                  />
+                </div>
+              )}
+            </div>
+            {provider === "ollama" && (
+              <p className="text-[10px] text-muted-foreground mt-2 italic">
+                * Uses your local Ollama instance configured in the backend.
+              </p>
+            )}
+          </div>
+        )}
 
         {processingStatus && (
           <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 p-4 rounded-lg bg-muted/30 border border-white/5">
