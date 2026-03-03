@@ -15,18 +15,20 @@ import {
   QueueNames,
 } from "../utils/constants";
 import { updateStatus } from "../utils/update-status";
-import { ollamaGenerate } from "../services/ollama.service";
+import { aiGenerate } from "../services/ai.service";
 import { cleanupFiles } from "../utils/temp-files";
 import { logger } from "../utils/logger";
 
 export interface GatekeeperPayload {
   audio_hash: string;
   file_path: string;
+  api_key?: string;
+  provider?: "gemini" | "openai" | "anthropic" | "ollama";
 }
 
 export class GatekeeperWorker {
   async perform(payload: GatekeeperPayload) {
-    const { audio_hash, file_path } = payload;
+    const { audio_hash, file_path, api_key, provider } = payload;
     const log = logger.child({ worker: "gatekeeper", audio_hash });
     log.info("Received payload");
     const MAX_RETRIES = envs.gatekeeper.MAX_RETRIES;
@@ -125,7 +127,12 @@ export class GatekeeperWorker {
           continue;
         }
 
-        const classification = await this.classifyWithOllama(transcribedText);
+        const classification = await this.classifyWithAI(
+          transcription,
+          api_key,
+          provider,
+        );
+
         log.info(`Classification result: ${classification}`, { attempt });
 
         attemptsHistory.push(classification);
@@ -143,7 +150,11 @@ export class GatekeeperWorker {
           audio_hash,
           ProcessingStatus.PENDING_TRANSCRIPTION,
         );
-        await queueService.publish(QueueNames.AUDIO_TRANSCRIBE, payload);
+        await queueService.publish(QueueNames.AUDIO_TRANSCRIBE, {
+          ...payload,
+          api_key,
+          provider,
+        });
         return { status: "gatekeeper_success", classification: "SOFTWARE" };
       } else {
         const reason = GatekeeperRejectionReason.INVALID_CONTEXT;
@@ -176,14 +187,18 @@ export class GatekeeperWorker {
     }
   }
 
-  private async classifyWithOllama(
+  private async classifyWithAI(
     text: string,
+    apiKey?: string,
+    provider?: any,
   ): Promise<"SOFTWARE" | "OTHER"> {
-    const result = await ollamaGenerate({
+    const result = await aiGenerate({
       model: envs.gatekeeper.GATEKEEPER_ANALYTICS_MODEL,
       prompt: gatekeeperPrompt(text),
       timeoutMs: 30_000,
       maxRetries: 2,
+      apiKey,
+      provider,
     });
 
     if (!result) {

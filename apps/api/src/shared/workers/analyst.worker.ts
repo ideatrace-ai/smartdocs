@@ -9,29 +9,33 @@ import {
   GatekeeperRejectionReason,
 } from "../utils/constants";
 import { updateStatus } from "../utils/update-status";
-import { ollamaGenerate } from "../services/ollama.service";
+import { aiGenerate } from "../services/ai.service";
 import { logger } from "../utils/logger";
 
 export interface AnalystPayload {
   audio_hash: string;
   full_text: string;
+  api_key?: string;
+  provider?: "gemini" | "openai" | "anthropic" | "ollama";
 }
 
 export class AnalystWorker {
   async perform(payload: AnalystPayload) {
-    const { audio_hash, full_text } = payload;
+    const { audio_hash, full_text, api_key, provider } = payload;
     const log = logger.child({ worker: "analyst", audio_hash });
     log.info("Received payload");
 
     try {
       await updateStatus(audio_hash, ProcessingStatus.ANALYZING);
 
-      const markdownContent = await ollamaGenerate({
+      const markdownContent = await aiGenerate({
         model: envs.analytics.ANALYTICS_MODEL,
         prompt: full_text,
         system: analystContext,
         timeoutMs: 180_000,
         maxRetries: 3,
+        apiKey: api_key,
+        provider: provider,
       });
 
       if (!markdownContent) {

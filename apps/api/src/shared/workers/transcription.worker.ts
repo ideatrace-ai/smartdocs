@@ -8,13 +8,15 @@ import { logger } from "../utils/logger";
 export interface TranscriptionPayload {
   audio_hash: string;
   file_path: string;
+  api_key?: string;
+  provider?: "gemini" | "openai" | "anthropic" | "ollama";
 }
 
 export class TranscriptionWorker {
   async perform(
     payload: TranscriptionPayload,
   ): Promise<{ status: string; transcript: string }> {
-    const { audio_hash, file_path } = payload;
+    const { audio_hash, file_path, api_key, provider } = payload;
     const log = logger.child({ worker: "transcription", audio_hash });
     log.info("Received payload");
 
@@ -53,6 +55,8 @@ export class TranscriptionWorker {
       const message = {
         audio_hash: audio_hash,
         full_text: cleanedText,
+        api_key: api_key,
+        provider: provider,
       };
 
       await updateStatus(audio_hash, ProcessingStatus.PENDING_ANALYSIS);
