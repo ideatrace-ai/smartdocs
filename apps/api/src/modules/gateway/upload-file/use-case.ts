@@ -7,7 +7,11 @@ import path from "path";
 import { ProcessingStatus, QueueNames } from "../../../shared/utils/constants";
 import { logger } from "../../../shared/utils/logger";
 
-export async function handleAudioUpload(audioFile: File) {
+export async function handleAudioUpload(
+  audioFile: File,
+  apiKey?: string,
+  provider?: string,
+) {
   const audioBuffer = await audioFile.arrayBuffer();
 
   const hash = createHash("sha256")
@@ -53,6 +57,8 @@ export async function handleAudioUpload(audioFile: File) {
   await queueService.publish(QueueNames.AUDIO_NEW, {
     audio_hash: hash,
     file_path: filePath,
+    api_key: apiKey,
+    provider: provider,
   });
 
   return {

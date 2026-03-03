@@ -5,7 +5,11 @@ import { handleAudioUpload } from "./use-case";
 export const uploadFileRouter = new Elysia().post(
   "/upload",
   async ({ body, status }) => {
-    const result = await handleAudioUpload(body.audio);
+    const result = await handleAudioUpload(
+      body.audio,
+      body.api_key,
+      body.provider,
+    );
     if (result.isCached) {
       return result.data;
     }
