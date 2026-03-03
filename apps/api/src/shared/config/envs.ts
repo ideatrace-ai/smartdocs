@@ -7,6 +7,7 @@ export const envs = {
   transcription: loadTranscriptionEnvs(),
   analytics: loadAnalyticsEnvs(),
   gatekeeper: loadGatekeeperEnvs(),
+  ai: loadAiEnvs(),
 };
 
 function loadAppEnvs() {
@@ -14,6 +15,18 @@ function loadAppEnvs() {
     NODE_ENV: z.enum(["dev", "prod"]).default("dev"),
     PORT: z.coerce.number().default(8080),
     CLIENT_URL: z.url().default("http://localhost:3000"),
+  });
+
+  return schema.parse(process.env);
+}
+
+function loadAiEnvs() {
+  const schema = z.object({
+    AI_PROVIDER: z.enum(["gemini", "openai", "anthropic", "ollama"]).optional(),
+    GEMINI_API_KEY: z.string().optional(),
+    OPENAI_API_KEY: z.string().optional(),
+    ANTHROPIC_API_KEY: z.string().optional(),
+    AI_MODEL: z.string().optional(),
   });
 
   return schema.parse(process.env);
