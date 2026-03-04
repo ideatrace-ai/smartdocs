@@ -65,19 +65,20 @@ These variables allow you to switch between different AI providers. If no provid
 
 | Variable | Description | Default |
 | :--- | :--- | :--- |
-| `AI_PROVIDER` | Preferred provider (`gemini`, `openai`, `anthropic`, `ollama`). | `ollama` |
+| `AI_PROVIDER` | Preferred provider (`gemini`, `openai`, `anthropic`, `openrouter`, `ollama`). | `ollama` |
 | `GEMINI_API_KEY` | API Key for Google Gemini. | Optional |
 | `OPENAI_API_KEY` | API Key for OpenAI (GPT). | Optional |
 | `ANTHROPIC_API_KEY`| API Key for Anthropic (Claude). | Optional |
-| `AI_MODEL` | Specific model to use (e.g., `gpt-4o`, `claude-3-5-sonnet`). | Provider Default |
+| `OPENROUTER_API_KEY`| API Key for OpenRouter. | Optional |
+| `AI_MODEL` | Specific model to use (e.g., `gpt-4o`, `google/gemini-flash-1.5`). | Provider Default |
 
 ## Overview
 
-The core philosophy of SmartDocs is "local-first," but it offers the flexibility to use powerful cloud-based AI models when needed. Your data can be processed entirely on your own hardware using Ollama, or you can provide your own API keys for professional-grade analysis via Gemini, OpenAI, or Anthropic.
+The core philosophy of SmartDocs is "local-first," but it offers the flexibility to use powerful cloud-based AI models when needed. Your data can be processed entirely on your own hardware using Ollama, or you can provide your own API keys for professional-grade analysis via Gemini, OpenAI, Anthropic, or OpenRouter.
 
 ### Features
 
--   **Flexible AI Providers**: Choose between local-first processing (Ollama) or high-performance cloud models (Gemini, OpenAI, Anthropic).
+-   **Flexible AI Providers**: Choose between local-first processing (Ollama) or high-performance cloud models (Gemini, OpenAI, Anthropic, OpenRouter).
 -   **User-Provided API Keys**: Users can enter their own AI API keys directly in the web interface for custom processing.
 -   **Local Fallback**: If no API keys are provided, the system seamlessly falls back to your local Ollama instance.
 -   **Event-Driven Architecture**: Built on a robust, scalable architecture using RabbitMQ for asynchronous job processing.

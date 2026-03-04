@@ -505,6 +505,7 @@ export function UploadForm() {
                   <option value="gemini">Gemini</option>
                   <option value="openai">OpenAI</option>
                   <option value="anthropic">Anthropic</option>
+                  <option value="openrouter">OpenRouter</option>
                 </select>
               </div>
 

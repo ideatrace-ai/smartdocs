@@ -22,10 +22,11 @@ function loadAppEnvs() {
 
 function loadAiEnvs() {
   const schema = z.object({
-    AI_PROVIDER: z.enum(["gemini", "openai", "anthropic", "ollama"]).optional(),
+    AI_PROVIDER: z.enum(["gemini", "openai", "anthropic", "openrouter", "ollama"]).optional(),
     GEMINI_API_KEY: z.string().optional(),
     OPENAI_API_KEY: z.string().optional(),
     ANTHROPIC_API_KEY: z.string().optional(),
+    OPENROUTER_API_KEY: z.string().optional(),
     AI_MODEL: z.string().optional(),
   });
 

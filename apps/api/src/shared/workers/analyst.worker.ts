@@ -16,7 +16,7 @@ export interface AnalystPayload {
   audio_hash: string;
   full_text: string;
   api_key?: string;
-  provider?: "gemini" | "openai" | "anthropic" | "ollama";
+  provider?: "gemini" | "openai" | "anthropic" | "openrouter" | "ollama";
 }
 
 export class AnalystWorker {

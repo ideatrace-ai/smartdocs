@@ -9,7 +9,7 @@ export interface TranscriptionPayload {
   audio_hash: string;
   file_path: string;
   api_key?: string;
-  provider?: "gemini" | "openai" | "anthropic" | "ollama";
+  provider?: "gemini" | "openai" | "anthropic" | "openrouter" | "ollama";
 }
 
 export class TranscriptionWorker {

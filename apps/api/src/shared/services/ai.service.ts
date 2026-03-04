@@ -13,7 +13,7 @@ export interface AIGenerateOptions {
   system?: string;
   timeoutMs?: number;
   maxRetries?: number;
-  provider?: "gemini" | "openai" | "anthropic" | "ollama";
+  provider?: "gemini" | "openai" | "anthropic" | "openrouter" | "ollama";
   apiKey?: string;
 }
 
@@ -171,6 +171,46 @@ async function generateAnthropic(options: AIGenerateOptions): Promise<string | n
   return (result as any).content?.[0]?.text || null;
 }
 
+async function generateOpenRouter(options: AIGenerateOptions): Promise<string | null> {
+  const apiKey = options.apiKey || envs.ai.OPENROUTER_API_KEY;
+  const model = options.model || envs.ai.AI_MODEL || "google/gemini-flash-1.5";
+  const url = "https://openrouter.ai/api/v1/chat/completions";
+
+  const messages = [];
+  if (options.system) {
+    messages.push({ role: "system", content: options.system });
+  }
+  messages.push({ role: "user", content: options.prompt });
+
+  const body = {
+    model,
+    messages,
+  };
+
+  const response = await fetchWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://smartdocs.ai",
+        "X-Title": "SmartDocs",
+      },
+      body: JSON.stringify(body),
+    },
+    options.timeoutMs || DEFAULT_TIMEOUT_MS,
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`OpenRouter API returned status ${response.status}: ${errorBody}`);
+  }
+
+  const result = await response.json();
+  return (result as any).choices?.[0]?.message?.content || null;
+}
+
 export async function aiGenerate(
   options: AIGenerateOptions,
 ): Promise<string | null> {
@@ -185,6 +225,7 @@ export async function aiGenerate(
     if (options.apiKey || envs.ai.GEMINI_API_KEY) provider = "gemini";
     else if (options.apiKey || envs.ai.OPENAI_API_KEY) provider = "openai";
     else if (options.apiKey || envs.ai.ANTHROPIC_API_KEY) provider = "anthropic";
+    else if (options.apiKey || envs.ai.OPENROUTER_API_KEY) provider = "openrouter";
     else provider = "ollama";
   }
 
@@ -199,6 +240,8 @@ export async function aiGenerate(
           return await generateOpenAI(options);
         case "anthropic":
           return await generateAnthropic(options);
+        case "openrouter":
+          return await generateOpenRouter(options);
         case "ollama":
         default:
           return await generateOllama(options);
