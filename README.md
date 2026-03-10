@@ -78,9 +78,10 @@ The core philosophy of SmartDocs is "local-first," but it offers the flexibility
 
 ### Features
 
+-   **Unified AI Integration**: Powered by the **Vercel AI SDK**, providing a robust and extensible interface for multiple LLM providers.
 -   **Flexible AI Providers**: Choose between local-first processing (Ollama) or high-performance cloud models (Gemini, OpenAI, Anthropic, OpenRouter).
 -   **User-Provided API Keys**: Users can enter their own AI API keys directly in the web interface for custom processing.
--   **Local Fallback**: If no API keys are provided, the system seamlessly falls back to your local Ollama instance.
+-   **Local Fallback**: If no API keys are provided, the system seamlessly falls back to your local Ollama instance (using the OpenAI-compatible bridge).
 -   **Event-Driven Architecture**: Built on a robust, scalable architecture using RabbitMQ for asynchronous job processing.
 -   **AI-Powered Filtering**: A "Gatekeeper" worker uses a lightweight LLM to quickly discard irrelevant audio (e.g., music, noise).
 -   **Multilingual Transcription**: Utilizes Whisper for accurate speech-to-text conversion with support for multiple languages.
@@ -91,12 +92,12 @@ The core philosophy of SmartDocs is "local-first," but it offers the flexibility
 
 ## Architecture
 
-The system is a TypeScript monorepo managed by Turborepo. The backend is built with Bun and ElysiaJS, communicating with a series of background workers via RabbitMQ.
+The system is a TypeScript monorepo managed by Turborepo. The backend is built with Bun and ElysiaJS, communicating with a series of background workers via RabbitMQ. AI interactions are abstracted through the **Vercel AI SDK**, ensuring consistency and resilience across different providers.
 
 1.  **API (`apps/api`)**: The main entry point. It receives an audio file and optional AI configurations (provider/key), generates a hash, and places a new job in the `q.audio.new` queue.
 2.  **Gatekeeper Worker**: Consumes from `q.audio.new`. It validates the audio for speech content using the selected AI provider.
 3.  **Transcriber Worker**: Consumes from `q.audio.transcribe`. It performs a full transcription of the audio using local Whisper.
-4.  **Analyst Worker**: Consumes from `q.transcript.analyze`. It uses the selected AI provider (Local or Cloud) to generate a structured Markdown SRS document.
+4.  **Analyst Worker**: Consumes from `q.transcript.analyze`. It uses the selected AI provider (Local or Cloud) via the AI SDK to generate a structured Markdown SRS document.
 
 ## Tech Stack
 
@@ -105,9 +106,10 @@ The system is a TypeScript monorepo managed by Turborepo. The backend is built w
 -   **Frontend**: Next.js with React & Tailwind CSS
 -   **Database**: PostgreSQL with Drizzle ORM
 -   **Message Broker**: RabbitMQ
--   **AI Services**:
-    -   **Local**: Ollama (phi3, llama3, etc.)
-    -   **Cloud**: Google Gemini, OpenAI (GPT), Anthropic (Claude)
+-   **AI Orchestration**: **Vercel AI SDK** (`ai` package)
+-   **AI Providers**:
+    -   **Local**: Ollama (via OpenAI compatibility layer)
+    -   **Cloud**: Google Gemini, OpenAI (GPT), Anthropic (Claude), OpenRouter
     -   **Transcription**: `nodejs-whisper` (local)
 -   **Audio Processing**: FFmpeg
 
