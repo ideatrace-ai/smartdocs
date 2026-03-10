@@ -15,10 +15,17 @@
     "consume:analyst": "bun run src/shared/queue/consumers/analyst.consumer.ts"
   },
   "dependencies": {
+    "@ai-sdk/amazon-bedrock": "^4.0.77",
+    "@ai-sdk/anthropic": "^3.0.58",
+    "@ai-sdk/azure": "^3.0.42",
+    "@ai-sdk/google": "^3.0.43",
+    "@ai-sdk/mistral": "^3.0.24",
+    "@ai-sdk/openai": "^3.0.41",
     "@elysiajs/cors": "^1.4.0",
     "@elysiajs/openapi": "1.4.11",
     "@types/amqplib": "0.10.8",
     "@types/fluent-ffmpeg": "2.1.28",
+    "ai": "^6.0.116",
     "amqplib": "0.10.9",
     "drizzle-orm": "0.44.7",
     "elysia": "1.4.15",
