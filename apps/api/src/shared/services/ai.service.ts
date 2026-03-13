@@ -1,4 +1,4 @@
-import { generateText, generateTranscription } from "ai";
+import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createAnthropic } from "@ai-sdk/anthropic";
@@ -115,23 +115,38 @@ export async function aiTranscription(
   options: AITranscriptionOptions,
 ): Promise<string | null> {
   try {
-    const openai = createOpenAI({
-      apiKey: options.apiKey || envs.ai.OPENAI_API_KEY,
+    const apiKey = options.apiKey || envs.ai.OPENAI_API_KEY;
+    const model = options.model || "whisper-1";
+
+    if (!apiKey) {
+      throw new Error("OpenAI API key is required for cloud transcription");
+    }
+
+    log.info(`Generating transcription with OpenAI Whisper Cloud API`, {
+      model: model
     });
 
-    const model = openai.transcription(options.model || "whisper-1");
-    const audioFile = await fs.readFile(options.filePath);
+    const audioBuffer = await fs.readFile(options.filePath);
+    const formData = new FormData();
+    const blob = new Blob([audioBuffer]);
+    formData.append("file", blob, "audio.wav");
+    formData.append("model", model);
 
-    log.info(`Generating transcription with OpenAI Whisper`, {
-      model: options.model || "whisper-1"
+    const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: formData,
     });
 
-    const { text } = await generateTranscription({
-      model,
-      audio: audioFile,
-    });
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`OpenAI Whisper API returned status ${response.status}: ${errorBody}`);
+    }
 
-    return text;
+    const result = (await response.json()) as { text: string };
+    return result.text;
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     log.error(`AI transcription failed: ${errorMsg}`);
