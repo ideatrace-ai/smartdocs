@@ -4,40 +4,57 @@ import { nodewhisper } from "nodejs-whisper";
 import { envs } from "../config/envs";
 import { updateStatus } from "../utils/update-status";
 import { logger } from "../utils/logger";
+import { aiTranscription } from "../services/ai.service";
 
 export interface TranscriptionPayload {
   audio_hash: string;
   file_path: string;
   api_key?: string;
   provider?: "gemini" | "openai" | "anthropic" | "openrouter" | "ollama";
+  transcription_model?: string;
 }
 
 export class TranscriptionWorker {
   async perform(
     payload: TranscriptionPayload,
   ): Promise<{ status: string; transcript: string }> {
-    const { audio_hash, file_path, api_key, provider } = payload;
+    const { audio_hash, file_path, api_key, provider, transcription_model } = payload;
     const log = logger.child({ worker: "transcription", audio_hash });
     log.info("Received payload");
 
     try {
       await updateStatus(audio_hash, ProcessingStatus.TRANSCRIBING);
 
-      log.info("Starting transcription");
+      log.info("Starting transcription", { provider });
 
-      const transcript = await nodewhisper(file_path, {
-        modelName: envs.transcription.TRANSCRIPTION_MODEL,
-        autoDownloadModelName: envs.transcription.TRANSCRIPTION_MODEL,
-        whisperOptions: {
-          outputInText: true,
-          language: envs.transcription.TRANSCRIPTION_LANGUAGE,
-          translateToEnglish: false,
-        },
-      });
+      let full_text = "";
 
-      const full_text = transcript.trim();
+      if (provider === "openai") {
+        const transcript = await aiTranscription({
+          filePath: file_path,
+          apiKey: api_key,
+          model: transcription_model || "whisper-1",
+        });
+
+        if (!transcript) {
+          throw new Error("Cloud transcription failed to return text");
+        }
+        full_text = transcript;
+      } else {
+        const transcript = await nodewhisper(file_path, {
+          modelName: envs.transcription.TRANSCRIPTION_MODEL,
+          autoDownloadModelName: envs.transcription.TRANSCRIPTION_MODEL,
+          whisperOptions: {
+            outputInText: true,
+            language: envs.transcription.TRANSCRIPTION_LANGUAGE,
+            translateToEnglish: false,
+          },
+        });
+        full_text = transcript;
+      }
 
       const cleanedText = full_text
+        .trim()
         .replace(
           /\[\d{2}:\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}:\d{2}\.\d{3}\]/g,
           "",
@@ -50,6 +67,7 @@ export class TranscriptionWorker {
 
       log.info("Transcription complete", {
         length: cleanedText.length,
+        method: provider === "openai" ? "cloud" : "local"
       });
 
       const message = {
@@ -58,6 +76,7 @@ export class TranscriptionWorker {
         api_key: api_key,
         provider: provider,
       };
+
 
       await updateStatus(audio_hash, ProcessingStatus.PENDING_ANALYSIS);
       await queueService.publish(QueueNames.TRANSCRIPT_ANALYZE, message);

@@ -1,9 +1,10 @@
-import { generateText } from "ai";
+import { generateText, generateTranscription } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { envs } from "../config/envs";
 import { logger } from "../utils/logger";
+import fs from "fs/promises";
 
 const log = logger.child({ service: "ai" });
 
@@ -16,6 +17,12 @@ export interface AIGenerateOptions {
   timeoutMs?: number;
   maxRetries?: number;
   provider?: "gemini" | "openai" | "anthropic" | "openrouter" | "ollama";
+  apiKey?: string;
+}
+
+export interface AITranscriptionOptions {
+  model?: string;
+  filePath: string;
   apiKey?: string;
 }
 
@@ -104,3 +111,30 @@ export async function aiGenerate(
   }
 }
 
+export async function aiTranscription(
+  options: AITranscriptionOptions,
+): Promise<string | null> {
+  try {
+    const openai = createOpenAI({
+      apiKey: options.apiKey || envs.ai.OPENAI_API_KEY,
+    });
+
+    const model = openai.transcription(options.model || "whisper-1");
+    const audioFile = await fs.readFile(options.filePath);
+
+    log.info(`Generating transcription with OpenAI Whisper`, {
+      model: options.model || "whisper-1"
+    });
+
+    const { text } = await generateTranscription({
+      model,
+      audio: audioFile,
+    });
+
+    return text;
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    log.error(`AI transcription failed: ${errorMsg}`);
+    return null;
+  }
+}
