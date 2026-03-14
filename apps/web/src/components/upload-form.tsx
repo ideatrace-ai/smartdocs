@@ -15,19 +15,13 @@ import { Text } from "@/components/ui/text";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import {
-  Upload,
-  FileAudio,
-  X,
-  CheckCircle2,
-  Download,
-} from "lucide-react";
+import { Upload, FileAudio, X, CheckCircle2, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EditorModal } from "./editor-modal";
 import { marked } from "marked";
 import { envs } from "@/envs";
 
-const MAX_FILE_SIZE_MB = 250;
+const MAX_FILE_SIZE_MB = 500;
 const POLL_INTERVAL_MS = 3000;
 const MAX_POLL_ERRORS = 5;
 
@@ -53,33 +47,36 @@ export function UploadForm() {
     null,
   );
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-  
+  const [isMounted, setIsMounted] = useState(false);
+
   // AI Settings
-  const [provider, setProvider] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("ai_provider") || "ollama";
-    }
-    return "ollama";
-  });
-  const [apiKey, setApiKey] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("ai_api_key") || "";
-    }
-    return "";
-  });
+  const [provider, setProvider] = useState<string>("ollama");
+  const [apiKey, setApiKey] = useState<string>("");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Persist settings
+  // Load and Persist settings
   React.useEffect(() => {
-    localStorage.setItem("ai_provider", provider);
-  }, [provider]);
+    setIsMounted(true);
+    const savedProvider = localStorage.getItem("ai_provider");
+    const savedApiKey = localStorage.getItem("ai_api_key");
+    if (savedProvider) setProvider(savedProvider);
+    if (savedApiKey) setApiKey(savedApiKey);
+  }, []);
 
   React.useEffect(() => {
-    localStorage.setItem("ai_api_key", apiKey);
-  }, [apiKey]);
+    if (isMounted) {
+      localStorage.setItem("ai_provider", provider);
+    }
+  }, [provider, isMounted]);
+
+  React.useEffect(() => {
+    if (isMounted) {
+      localStorage.setItem("ai_api_key", apiKey);
+    }
+  }, [apiKey, isMounted]);
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
@@ -302,11 +299,7 @@ export function UploadForm() {
                 reject(new Error("Invalid response from server"));
               }
             } else {
-              reject(
-                new Error(
-                  `Upload failed with status ${xhr.status}`,
-                ),
-              );
+              reject(new Error(`Upload failed with status ${xhr.status}`));
             }
           });
 
@@ -347,7 +340,9 @@ export function UploadForm() {
     } catch (error) {
       abortControllerRef.current = null;
       const errorMessage =
-        error instanceof Error ? error.message : "An unexpected error occurred.";
+        error instanceof Error
+          ? error.message
+          : "An unexpected error occurred.";
 
       if (errorMessage === "Upload cancelled") {
         setProcessingStatus(null);
@@ -471,7 +466,8 @@ export function UploadForm() {
                   <Upload className="w-8 h-8" />
                 </div>
                 <div className="mb-2 text-lg font-medium text-foreground">
-                  <span className="text-primary">Click to upload</span> or drag and drop
+                  <span className="text-primary">Click to upload</span> or drag
+                  and drop
                 </div>
                 <p className="text-sm text-muted-foreground max-w-xs">
                   MP3, M4A, WAV, MP4 (Max {MAX_FILE_SIZE_MB}MB)
@@ -489,10 +485,13 @@ export function UploadForm() {
               </div>
               <Label className="text-sm font-semibold">AI Configuration</Label>
             </div>
-            
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="provider" className="text-xs text-muted-foreground uppercase tracking-wider">
+                <Label
+                  htmlFor="provider"
+                  className="text-xs text-muted-foreground uppercase tracking-wider"
+                >
                   Provider
                 </Label>
                 <select
@@ -509,9 +508,12 @@ export function UploadForm() {
                 </select>
               </div>
 
-              {provider !== "ollama" && (
+              {isMounted && provider !== "ollama" && (
                 <div className="space-y-2 animate-in fade-in slide-in-from-right-2">
-                  <Label htmlFor="api-key" className="text-xs text-muted-foreground uppercase tracking-wider">
+                  <Label
+                    htmlFor="api-key"
+                    className="text-xs text-muted-foreground uppercase tracking-wider"
+                  >
                     API Key
                   </Label>
                   <Input
@@ -548,7 +550,12 @@ export function UploadForm() {
                 processingStatus !== "FAILED" && (
                   <div className="flex items-center gap-2">
                     <Spinner size="size-4" />
-                    <Text variant="shine" className="text-sm text-muted-foreground">Processing...</Text>
+                    <Text
+                      variant="shine"
+                      className="text-sm text-muted-foreground"
+                    >
+                      Processing...
+                    </Text>
                   </div>
                 )}
             </div>
@@ -611,14 +618,14 @@ export function UploadForm() {
 
             {(processingStatus === "COMPLETE" ||
               processingStatus === "FAILED") && (
-                <Button
-                  variant="outline"
-                  className="w-full mt-2 bg-white text-black hover:bg-gray-100"
-                  onClick={handleRemoveFile}
-                >
-                  Upload Another File
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                className="w-full mt-2 bg-white text-black hover:bg-gray-100"
+                onClick={handleRemoveFile}
+              >
+                Upload Another File
+              </Button>
+            )}
           </div>
         )}
 
