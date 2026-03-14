@@ -51,7 +51,7 @@ function getModel(options: AIGenerateOptions) {
       const google = createGoogleGenerativeAI({
         apiKey: options.apiKey || envs.ai.GEMINI_API_KEY,
       });
-      return google(modelId || "gemini-1.5-flash");
+      return google(modelId || "gemini-2.0-flash");
     }
     case "anthropic": {
       const anthropic = createAnthropic({
@@ -64,7 +64,7 @@ function getModel(options: AIGenerateOptions) {
         apiKey: options.apiKey || envs.ai.OPENROUTER_API_KEY,
         baseURL: "https://openrouter.ai/api/v1",
       });
-      return openrouter(modelId || "google/gemini-flash-1.5");
+      return openrouter(modelId || "google/gemini-2.0-flash");
     }
     case "ollama": {
       const ollama = createOpenAI({
