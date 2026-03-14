@@ -190,24 +190,25 @@ export class GatekeeperWorker {
   private async classifyWithAI(
     text: string,
     apiKey?: string,
-    provider?: any,
+    provider?: string,
   ): Promise<"SOFTWARE" | "OTHER"> {
+    const useLocal = !provider || provider === "ollama";
     const result = await aiGenerate({
-      model: envs.gatekeeper.GATEKEEPER_ANALYTICS_MODEL,
+      model: useLocal ? envs.gatekeeper.GATEKEEPER_ANALYTICS_MODEL : undefined,
       prompt: gatekeeperPrompt(text),
       timeoutMs: 30_000,
       maxRetries: 2,
-      apiKey,
-      provider,
+      apiKey: useLocal ? undefined : apiKey,
+      provider: useLocal ? "ollama" : provider,
     });
 
     if (!result) {
-      logger.error("Ollama classification returned no result");
+      logger.error("Classification returned no result");
       return "OTHER";
     }
 
     const classification = result.trim().toUpperCase();
-    logger.debug(`Ollama raw response: "${result.trim()}"`);
+    logger.debug(`Classification raw response: "${result.trim()}"`);
 
     if (classification.includes("SOFTWARE")) {
       return "SOFTWARE";
