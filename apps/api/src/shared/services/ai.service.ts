@@ -64,7 +64,7 @@ function getModel(options: AIGenerateOptions) {
         apiKey: options.apiKey || envs.ai.OPENROUTER_API_KEY,
         baseURL: "https://openrouter.ai/api/v1",
       });
-      return openrouter(modelId || "google/gemini-2.0-flash");
+      return openrouter(modelId || "google/gemini-2.0-flash-001");
     }
     case "ollama": {
       const ollama = createOpenAI({
