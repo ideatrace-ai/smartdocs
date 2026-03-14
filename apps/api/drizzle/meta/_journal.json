@@ -8,6 +8,20 @@
       "when": 1763581698128,
       "tag": "20251119194818_--name=init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1763852719000,
+      "tag": "20251123034519_futuristic_violations",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1771365600000,
+      "tag": "20260216000000_schema_improvements",
+      "breakpoints": true
     }
   ]
 }
