@@ -1,6 +1,6 @@
 import { t } from "elysia";
 
-const MAX_FILE_SIZE = 250 * 1024 * 1024; // 250MB
+const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
 
 export const uploadSchema = {
   body: t.Object({

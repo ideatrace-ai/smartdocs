@@ -5,7 +5,11 @@ import { gatewayRouter } from "../../modules/gateway/router";
 import { envs } from "../config/envs";
 import { logger } from "../utils/logger";
 
-const app = new Elysia()
+const app = new Elysia({
+  serve: {
+    maxRequestBodySize: 1024 * 1024 * 500, // 500MB
+  },
+})
   .use(cors())
   .use(
     openapi({
