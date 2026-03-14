@@ -192,14 +192,13 @@ export class GatekeeperWorker {
     apiKey?: string,
     provider?: string,
   ): Promise<"SOFTWARE" | "OTHER"> {
-    const useLocal = !provider || provider === "ollama";
     const result = await aiGenerate({
-      model: useLocal ? envs.gatekeeper.GATEKEEPER_ANALYTICS_MODEL : undefined,
+      model: envs.gatekeeper.GATEKEEPER_ANALYTICS_MODEL,
       prompt: gatekeeperPrompt(text),
       timeoutMs: 30_000,
       maxRetries: 2,
-      apiKey: useLocal ? undefined : apiKey,
-      provider: useLocal ? "ollama" : provider,
+      apiKey,
+      provider,
     });
 
     if (!result) {
