@@ -128,7 +128,7 @@ export class GatekeeperWorker {
         }
 
         const classification = await this.classifyWithAI(
-          transcription,
+          transcribedText,
           api_key,
           provider,
         );
