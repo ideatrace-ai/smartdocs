@@ -21,7 +21,6 @@ export async function handleAudioUpload(
   const safeExtension = path.extname(path.basename(audioFile.name)) || ".wav";
   const tempPath = path.join(dataDir, `upload_${Date.now()}${safeExtension}`);
 
-  // Stream the file to disk while computing the hash incrementally
   const hash = createHash("sha256");
   const writeStream = createWriteStream(tempPath);
   const readable = Readable.fromWeb(audioFile.stream() as any);
@@ -58,7 +57,6 @@ export async function handleAudioUpload(
     };
   }
 
-  // Rename temp file to its final hash-based name
   const filePath = path.join(dataDir, `${audioHash}${safeExtension}`);
   await rename(tempPath, filePath);
   logger.info(`Audio file saved to: ${filePath}`);

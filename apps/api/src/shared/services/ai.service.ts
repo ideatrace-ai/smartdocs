@@ -29,7 +29,6 @@ export interface AITranscriptionOptions {
 function getModel(options: AIGenerateOptions) {
   let provider = options.provider || envs.ai.AI_PROVIDER;
 
-  // Auto-detect provider based on keys if not specified
   if (!provider) {
     if (options.apiKey || envs.ai.GEMINI_API_KEY) provider = "gemini";
     else if (options.apiKey || envs.ai.OPENAI_API_KEY) provider = "openai";
@@ -40,8 +39,6 @@ function getModel(options: AIGenerateOptions) {
 
   const rawModelId = options.model || envs.ai.AI_MODEL;
 
-  // Only use the configured model if it's compatible with the provider.
-  // Local Ollama models (no "/" in name) should not be sent to cloud providers.
   const isLocalModel = rawModelId && !rawModelId.includes("/") && !rawModelId.startsWith("gpt-") && !rawModelId.startsWith("gemini-") && !rawModelId.startsWith("claude-");
   const modelId = (provider !== "ollama" && isLocalModel) ? undefined : rawModelId;
 
@@ -74,7 +71,7 @@ function getModel(options: AIGenerateOptions) {
     case "ollama": {
       const ollama = createOpenAI({
         baseURL: `${envs.services.OLLAMA_API_URL}/v1`,
-        apiKey: "ollama", // placeholder
+        apiKey: "ollama",
       });
       return ollama(modelId || envs.analytics.ANALYTICS_MODEL);
     }

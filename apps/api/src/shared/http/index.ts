@@ -7,7 +7,7 @@ import { logger } from "../utils/logger";
 
 const app = new Elysia({
   serve: {
-    maxRequestBodySize: 1024 * 1024 * 500, // 500MB
+    maxRequestBodySize: 1024 * 1024 * 500,
   },
 })
   .use(cors())
