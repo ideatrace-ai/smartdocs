@@ -32,7 +32,7 @@ export class AnalystWorker {
         model: envs.analytics.ANALYTICS_MODEL,
         prompt: full_text,
         system: analystContext,
-        timeoutMs: 180_000,
+        timeoutMs: 600_000,
         maxRetries: 3,
         apiKey: api_key,
         provider: provider,
