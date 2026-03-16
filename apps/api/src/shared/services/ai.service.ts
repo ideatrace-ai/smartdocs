@@ -73,7 +73,7 @@ function getModel(options: AIGenerateOptions) {
         baseURL: `${envs.services.OLLAMA_API_URL}/v1`,
         apiKey: "ollama",
       });
-      return ollama(modelId || envs.analytics.ANALYTICS_MODEL);
+      return ollama.chat(modelId || envs.analytics.ANALYTICS_MODEL);
     }
     default:
       throw new Error(`Unsupported AI provider: ${provider}`);
