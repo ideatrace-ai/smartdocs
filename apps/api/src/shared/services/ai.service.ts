@@ -80,6 +80,28 @@ function getModel(options: AIGenerateOptions) {
   }
 }
 
+async function checkOllamaAvailability(modelId: string) {
+  const baseUrl = envs.services.OLLAMA_API_URL;
+  try {
+    const res = await fetch(`${baseUrl}/api/tags`, { signal: AbortSignal.timeout(5_000) });
+    if (!res.ok) {
+      return { ok: false as const, reason: `Ollama API returned status ${res.status}` };
+    }
+    const data = (await res.json()) as { models?: { name: string }[] };
+    const models = data.models ?? [];
+    const normalizedTarget = modelId.includes(":") ? modelId : `${modelId}:latest`;
+    const found = models.some((m) => m.name === normalizedTarget || m.name === modelId);
+    if (!found) {
+      const available = models.map((m) => m.name).join(", ") || "(none)";
+      return { ok: false as const, reason: `Model "${modelId}" not found in Ollama. Available: ${available}` };
+    }
+    return { ok: true as const };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false as const, reason: `Cannot connect to Ollama at ${baseUrl}: ${msg}` };
+  }
+}
+
 export async function aiGenerate(
   options: AIGenerateOptions,
 ): Promise<string | null> {
@@ -87,28 +109,57 @@ export async function aiGenerate(
     maxRetries = DEFAULT_MAX_RETRIES,
   } = options;
 
+  const provider = options.provider || envs.ai.AI_PROVIDER || "ollama";
+  const ollamaModelId = provider === "ollama"
+    ? (options.model || envs.ai.AI_MODEL || envs.analytics.ANALYTICS_MODEL)
+    : null;
+
   try {
+    if (provider === "ollama" && ollamaModelId) {
+      const check = await checkOllamaAvailability(ollamaModelId);
+      if (!check.ok) {
+        log.error(`Ollama pre-flight check failed: ${check.reason}`);
+        return null;
+      }
+      log.info("Ollama pre-flight check passed", { model: ollamaModelId });
+    }
+
     const model = getModel(options);
-    
-    log.info(`Generating text with Vercel AI SDK`, { 
-      provider: options.provider || "auto",
+
+    log.info(`Generating text with Vercel AI SDK`, {
+      provider: provider,
       model: options.model || "default"
     });
+
+    const startTime = Date.now();
 
     const { text } = await generateText({
       model,
       prompt: options.prompt,
       system: options.system,
       maxRetries: maxRetries,
-      abortSignal: options.timeoutMs 
-        ? AbortSignal.timeout(options.timeoutMs) 
+      abortSignal: options.timeoutMs
+        ? AbortSignal.timeout(options.timeoutMs)
         : undefined,
     });
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    log.info(`AI generation completed in ${elapsed}s`, { provider, chars: text.length });
 
     return text;
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
-    log.error(`AI generation failed: ${errorMsg}`);
+
+    if (error instanceof Error && error.name === "TimeoutError") {
+      log.error(`AI generation timed out after ${(options.timeoutMs || 0) / 1000}s (model was processing but too slow)`, { provider });
+    } else if (errorMsg.includes("ECONNREFUSED")) {
+      log.error(`AI generation failed: connection refused. Is the ${provider} service running?`, { provider });
+    } else if (errorMsg.includes("Not Found") || errorMsg.includes("404")) {
+      log.error(`AI generation failed: endpoint not found. Check provider/model compatibility`, { provider, model: options.model });
+    } else {
+      log.error(`AI generation failed: ${errorMsg}`, { provider });
+    }
+
     return null;
   }
 }
