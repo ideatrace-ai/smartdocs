@@ -115,67 +115,82 @@ The system is a TypeScript monorepo managed by Turborepo. The backend is built w
 
 ---
 
-## Running the Project (Hybrid Mode)
+## Getting Started
 
-The project runs in a **Hybrid Mode**:
--   **Infrastructure**: PostgreSQL and RabbitMQ run in Docker.
--   **Application**: The Web App, API, and Workers run locally on your machine using Bun.
+The project runs in **Hybrid Mode**: infrastructure (PostgreSQL, RabbitMQ) in Docker, and the application (Web, API, Workers) locally via Bun.
 
-### 1. Prerequisites
+### Prerequisites
 
--   **Docker**: [Install Docker](https://docs.docker.com/get-docker/) (or OrbStack)
--   **Bun**: [Install Bun](https://bun.sh/)
--   **FFmpeg**: `brew install ffmpeg`
--   **Ollama**: Must be installed and running on your host machine. [Download Ollama](https://ollama.com/)
+-   [Docker](https://docs.docker.com/get-docker/) (or OrbStack)
+-   [Bun](https://bun.sh/)
+-   [FFmpeg](https://ffmpeg.org/download.html) (`brew install ffmpeg` on macOS)
+-   [Ollama](https://ollama.com/) (optional, required only for local AI processing)
 
-### 2. Clone the Repository
+### Quick Setup (Automated)
+
+Clone the repository and run the setup script. It handles everything: environment files, Docker containers, dependencies, and database migrations.
 
 ```bash
 git clone <your-repository-url>
 cd <repository-name>
-```
-
-### 3. Set Up AI Models
-
-The AI models run on your host machine using Ollama.
-
--   **Pull Ollama Models**:
-    ```bash
-    ollama pull phi3:mini
-    ollama pull deepseek-coder
-    ```
-
-### 4. Start Infrastructure
-
-Start the database and message broker using Docker Compose:
-
-```bash
-docker compose up -d
-```
-
-### 5. Install Dependencies & Setup Database
-
-Install the project dependencies and run the database migrations:
-
-```bash
 bun install
-cd apps/api && bun run db:migrate
+bun run setup
 ```
 
-### 6. Run the Application
-
-You can run the entire application (Web, API, and Workers) with a single command from the project root:
+After setup, start the application:
 
 ```bash
 bun run dev
 ```
 
-This command uses Turborepo to run the following services in parallel:
--   **Web App**: [http://localhost:3000](http://localhost:3000)
--   **API Server**: [http://localhost:8080](http://localhost:8080)
--   **Gatekeeper Worker**
--   **Transcription Worker**
--   **Analyst Worker**
+### Manual Setup
+
+If you prefer to configure each step manually:
+
+1.  **Clone and install dependencies**
+    ```bash
+    git clone <your-repository-url>
+    cd <repository-name>
+    bun install
+    ```
+
+2.  **Configure environment variables**
+
+    Copy the example files and adjust values as needed:
+    ```bash
+    cp apps/api/.env.example apps/api/.env
+    cp apps/web/.env.example apps/web/.env
+    ```
+
+3.  **Start infrastructure**
+    ```bash
+    docker compose up -d
+    ```
+
+4.  **Run database migrations**
+    ```bash
+    cd apps/api && bun run db:migrate
+    ```
+
+5.  **Pull Ollama models** (optional, for local AI)
+    ```bash
+    ollama pull llama3
+    ollama pull phi3:mini
+    ```
+
+6.  **Start the application**
+    ```bash
+    bun run dev
+    ```
+
+### Available Services
+
+| Service | URL |
+| :--- | :--- |
+| Web App | [http://localhost:3000](http://localhost:3000) |
+| API Server | [http://localhost:8080](http://localhost:8080) |
+| RabbitMQ Management | [http://localhost:15672](http://localhost:15672) (guest/guest) |
+| Drizzle Studio | `cd apps/api && bun run db:studio` |
 
 ### Stopping the Application
 

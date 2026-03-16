@@ -2,6 +2,7 @@
   "name": "smartdocs",
   "private": true,
   "scripts": {
+    "setup": "bun run scripts/setup.ts",
     "build": "turbo run build",
     "dev": "turbo run dev consume:gatekeeper consume:transcription consume:analyst",
     "lint": "turbo run lint",

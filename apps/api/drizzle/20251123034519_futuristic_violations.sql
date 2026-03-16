@@ -1,9 +1,9 @@
-CREATE TABLE "requirement_documents" (
+CREATE TABLE IF NOT EXISTS "requirement_documents" (
 	"audio_hash" text PRIMARY KEY NOT NULL,
 	"document_data" jsonb NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "processing_status" (
+CREATE TABLE IF NOT EXISTS "processing_status" (
 	"audio_hash" text PRIMARY KEY NOT NULL,
 	"status" text NOT NULL,
 	"details" text,
