@@ -80,6 +80,26 @@ function getModel(options: AIGenerateOptions) {
   }
 }
 
+async function unloadOllamaModel(modelId: string) {
+  const baseUrl = envs.services.OLLAMA_API_URL;
+  try {
+    const res = await fetch(`${baseUrl}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: modelId, keep_alive: 0 }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (res.ok) {
+      log.info("Ollama model unloaded from memory", { model: modelId });
+    } else {
+      log.warn(`Failed to unload Ollama model (status ${res.status})`, { model: modelId });
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.warn(`Failed to unload Ollama model: ${msg}`, { model: modelId });
+  }
+}
+
 async function checkOllamaAvailability(modelId: string) {
   const baseUrl = envs.services.OLLAMA_API_URL;
   try {
@@ -161,6 +181,10 @@ export async function aiGenerate(
     }
 
     return null;
+  } finally {
+    if (ollamaModelId) {
+      await unloadOllamaModel(ollamaModelId);
+    }
   }
 }
 
