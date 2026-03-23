@@ -1,19 +1,19 @@
 import { Elysia } from "elysia";
-import { uploadSchema } from "./schema";
 import { handleAudioUpload } from "./use-case";
 
 export const uploadFileRouter = new Elysia().post(
   "/upload",
-  async ({ body, status }) => {
-    const result = await handleAudioUpload(
-      body.audio,
-      body.api_key,
-      body.provider,
-    );
+  async ({ request, status }) => {
+    const contentType = request.headers.get("content-type") || "";
+    if (!contentType.includes("multipart/form-data")) {
+      return status(400, { error: "Expected multipart/form-data" });
+    }
+
+    const result = await handleAudioUpload(request);
     if (result.isCached) {
       return result.data;
     }
     return status(200, result.data);
   },
-  uploadSchema,
+  { parse: "none" },
 );
