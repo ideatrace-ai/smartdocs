@@ -205,3 +205,7 @@ If you prefer to configure each step manually:
 4.  Once processing is complete, click the "Download Requirements Document" button to get your Markdown file.
 5.  Alternatively, access documents via the API at `http://localhost:8080/gateway/download/{audio_hash}`.
 
+## License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+

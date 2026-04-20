@@ -1,6 +1,7 @@
 {
   "name": "@smartdocs/api",
   "version": "0.1.0",
+  "license": "MIT",
   "type": "module",
   "main": "src/shared/http/index.ts",
   "types": "src/shared/http/index.ts",

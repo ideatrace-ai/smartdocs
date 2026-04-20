@@ -1,6 +1,7 @@
 {
   "name": "smartdocs",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "setup": "bun run scripts/setup.ts",
     "build": "turbo run build",
